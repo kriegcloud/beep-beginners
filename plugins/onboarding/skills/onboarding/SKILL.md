@@ -104,11 +104,11 @@ Ask one AskUserQuestion round, recommended answer first:
 
 - What should I call you? (`answer name`)
 - Which AI subscriptions do you pay for? Claude, ChatGPT, Grok, Gemini.
-  This is multi-select. (`answer subscriptions '["claude",...]'`)
+  This is multi-select. (`answer subscriptions --list claude,chatgpt`)
 - Which accounts do you already have? GitHub, 1Password, Bitwarden, Tailscale,
-  Microsoft (OneDrive). This is multi-select. (`answer accounts '[...]'`)
+  Microsoft (OneDrive). This is multi-select. (`answer accounts --list github,bitwarden`)
 - If the kit has a seed for this person (`seeds/<id>/seed.toml`), confirm it's
-  them by its description. (`answer seed '"milkman"'`)
+  them by its description. (`answer seed milkman`)
 
 Then, if they don't have 1Password: "1Password is $35.88 for the first year,
 then $47.88 a year after that. OK to sign up?" Only a clear yes moves on. The
@@ -206,7 +206,7 @@ Run `pick_folder.py --default <facts.default_workspace>`. Before it opens,
 say: "A folder picker is opening. The suggested folder is fine; click OK."
 If it reports `onedrive: true`, read out the warning and run it again. On
 `no-dialog`, ask in chat with the default as the recommended answer.
-Save the answer: `answer workspace_parent '"<path>"'`.
+Save the answer: `answer workspace_parent "<path>"`.
 
 ### 13. workspace
 

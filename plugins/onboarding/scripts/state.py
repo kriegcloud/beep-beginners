@@ -8,7 +8,8 @@
   state.py next                          the first step not done yet
   state.py done <step> [--note TEXT]     mark a step done
   state.py skip <step> --note TEXT       mark a step skipped, with the reason
-  state.py answer <key> <json-value>     store an answer, e.g. answer subscriptions '["claude"]'
+  state.py answer <key> <value>          store an answer (JSON if it parses, else text)
+  state.py answer <key> --list a,b,c     store a list without JSON quoting (safe in PowerShell)
   state.py reset                         start over (keeps a backup copy)
 
 The state lives in ~/.beep-beginners/onboarding.json (override with
@@ -95,7 +96,8 @@ def main() -> int:
         p = sub.add_parser(name)
         p.add_argument("step", choices=[s for s, _ in STEPS])
         p.add_argument("--note", required=(name == "skip"))
-    p = sub.add_parser("answer"); p.add_argument("key"); p.add_argument("value")
+    p = sub.add_parser("answer"); p.add_argument("key"); p.add_argument("value", nargs="?")
+    p.add_argument("--list", dest="as_list", help="comma-separated values, stored as a list")
     sub.add_parser("reset")
     args = parser.parse_args()
 
@@ -112,6 +114,8 @@ def main() -> int:
     if args.cmd in ("done", "skip"):
         state["steps"][args.step] = {"status": "done" if args.cmd == "done" else "skipped",
                                      "at": now(), **({"note": args.note} if args.note else {})}
+    elif args.cmd == "answer" and args.as_list is not None:
+        state["answers"][args.key] = [v.strip() for v in args.as_list.split(",") if v.strip()]
     elif args.cmd == "answer":
         try:
             state["answers"][args.key] = json.loads(args.value)
