@@ -334,10 +334,16 @@ Step 'OpenSSH Server' {
     Set-Content -Path $keys -Value $all -Encoding ascii
     icacls $keys /inheritance:r /grant 'Administrators:F' /grant 'SYSTEM:F' | Out-Null
   }
+  # Password logins off for everyone. The line must sit above the first Match
+  # block: Windows' default sshd_config ends with "Match Group administrators",
+  # and anything appended after it would apply only inside that block.
   $cfg = 'C:\ProgramData\ssh\sshd_config'
   if (Test-Path $cfg) {
-    $text = Get-Content $cfg -Raw
-    if ($text -notmatch '(?m)^PasswordAuthentication no') { Add-Content $cfg "`nPasswordAuthentication no" }
+    $lines = @(Get-Content $cfg | Where-Object { $_ -notmatch '^\s*PasswordAuthentication\s' })
+    $at = [Array]::FindIndex([string[]]$lines, [Predicate[string]]{ param($l) $l -match '^\s*Match\s' })
+    if ($at -lt 0) { $lines += 'PasswordAuthentication no' }
+    else { $lines = @($lines[0..($at - 1)]) + 'PasswordAuthentication no' + '' + @($lines[$at..($lines.Count - 1)]) }
+    Set-Content -Path $cfg -Value $lines -Encoding ascii
   }
   Set-Service sshd -StartupType Automatic
   Start-Service sshd

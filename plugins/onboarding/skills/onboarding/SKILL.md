@@ -107,6 +107,11 @@ Ask one AskUserQuestion round, recommended answer first:
   This is multi-select. (`answer subscriptions --list claude,chatgpt`)
 - Which accounts do you already have? GitHub, 1Password, Bitwarden, Tailscale,
   Microsoft (OneDrive). This is multi-select. (`answer accounts --list github,bitwarden`)
+- If there's a helper (the seed names one): "Can <helper> fix things on this
+  computer from their own, only over a private Tailscale link, only with their
+  own key, and only when you ask? You can turn it off any time." Recommend
+  yes. (`answer helper_access true|false`) This answer is the user's consent
+  for the help line in step 6. Without a yes, leave `--keys-url` out.
 - If the kit has a seed for this person (`seeds/<id>/seed.toml`), confirm it's
   them by its description. (`answer seed milkman`)
 
@@ -127,13 +132,17 @@ sentence before installing it.
 ### 6. install-machine (one Windows permission prompt)
 
 Windows only. Run `tools.py write-batch --keys-url <seed helper.keys_url>`.
-Leave out `--keys-url` when there's no seed. The batch holds the
+Leave out `--keys-url` when there's no seed or `helper_access` isn't true. The batch holds the
 machine-wide installs (Tailscale, Visual Studio Build Tools, PowerShell 7) and
 the help-line setup for SSH (decision 22).
 
-Tell the user: "Windows will ask once whether to allow changes. Click Yes. A
-few things install in the background; Build Tools is a large download and
-can take 10 to 20 minutes." Then run `tools.py run-batch`. If it reports
+Run the batch yourself; never ask the user to type or paste a command. Read
+the generated `.ps1` first and say in one sentence what it changes. If it
+includes the help line, cite the user's step 4 yes (`helper_access`), since
+that answer is their consent. Then tell the user: "Windows will ask once
+whether to allow changes. Click Yes. A few things install in the background;
+Build Tools is a large download and can take 10 to 20 minutes." Then run
+`tools.py run-batch`. The Yes click is the user's only part. If it reports
 `ran: false`, the prompt was declined: ask whether to try again.
 
 On macOS and Linux, install the remaining tools one at a time with the
