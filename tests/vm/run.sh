@@ -158,7 +158,10 @@ Unregister-ScheduledTask -TaskName milkman-launch -Confirm:\$false"
     own_lock
     # Electron title bars ignore a bare jump-and-click, so glide in, hover, then click.
     q() { v qemu-monitor-command "$NAME" "$1" >/dev/null; }
-    mv() { local x=$(( $1 * 32767 * 100 / 60 / 1280 )) y=$(( $2 * 32767 * 100 / 60 / 800 ))
+    # The guest resolution changes when a viewer window resizes it, so read it each time.
+    RES="$(mktemp --suffix .ppm)"; v screenshot "$NAME" "$RES" >/dev/null
+    read -r W H < <(magick identify -format "%w %h\n" "$RES"); rm -f "$RES"
+    mv() { local x=$(( $1 * 32767 * 100 / 60 / W )) y=$(( $2 * 32767 * 100 / 60 / H ))
       q "{\"execute\":\"input-send-event\",\"arguments\":{\"events\":[{\"type\":\"abs\",\"data\":{\"axis\":\"x\",\"value\":$x}},{\"type\":\"abs\",\"data\":{\"axis\":\"y\",\"value\":$y}}]}}"; }
     X=${2:?X} Y=${3:?Y}
     mv $((X - 8)) $((Y + 3)); sleep 0.4; mv $((X - 3)) $((Y + 1)); sleep 0.4; mv "$X" "$Y"; sleep 1
