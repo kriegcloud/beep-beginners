@@ -52,8 +52,11 @@ All scripts are Python run through uv:
 | `workspace.py create / move-code / user-settings / git-identity` | the GitHub workspace |
 
 If `uv --version` fails, nothing else can run yet. Install uv first with
-`winget install --id astral-sh.uv -e --source winget --accept-package-agreements --accept-source-agreements --disable-interactivity`,
-or on macOS and Linux with `curl -LsSf https://astral.sh/uv/install.sh | sh`.
+its own installer, which needs no admin rights:
+`powershell -ExecutionPolicy Bypass -c "irm https://astral.sh/uv/install.ps1 | iex"`,
+or on macOS and Linux `curl -LsSf https://astral.sh/uv/install.sh | sh`.
+Don't use winget for uv: its package pulls in the Visual C++ runtime, which
+shows an admin prompt (seen on the test VM, 2026-11-06).
 Then refresh PATH: open a new shell, or on Windows prepend
 `%LOCALAPPDATA%\Microsoft\WinGet\Links` and `%USERPROFILE%\.local\bin`.
 
@@ -65,8 +68,11 @@ one sentence what's finished and what's next.
 ### 1. bootstrap
 
 Usually done by the pasted setup sentence (see the kit's README). Make sure
-`claude --version`, `git --version` and `uv --version` all work. Install git
-with `winget install --id Git.Git -e --scope user ...` if needed.
+`claude --version`, `git --version` and `uv --version` all work. Nothing in
+this step may show an admin prompt. Install git only with
+`winget install --id Git.Git -e --scope user --skip-dependencies ...`; without
+`--scope user`, winget picks the machine-wide installer, which asks for
+admin rights.
 
 ### 2. detect
 

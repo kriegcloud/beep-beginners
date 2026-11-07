@@ -104,7 +104,7 @@ tools:
     name: uv
     why: "Runs the small Python helpers that keep the workspace tidy."
     when: always
-    windows: { winget: astral-sh.uv, scope: user }
+    windows: { script: "irm https://astral.sh/uv/install.ps1 | iex", scope: user }
     macos: { brew: uv }
     linux: { script: "curl -LsSf https://astral.sh/uv/install.sh | sh" }
     check:
@@ -175,6 +175,20 @@ tools:
       detect: "bun --version"
       verify: "bun -e \"console.log('bun-ok')\""
       expect: "bun-ok"
+
+  - id: vcredist
+    name: Microsoft Visual C++ runtime
+    why: "A Windows library several of these tools need. It goes in with the one permission prompt."
+    when: always
+    windows: { winget: Microsoft.VCRedist.2015+.x64, scope: machine }
+    check:
+      detect:
+        windows: "if (-not (Get-ItemProperty 'HKLM:\\SOFTWARE\\Microsoft\\VisualStudio\\14.0\\VC\\Runtimes\\x64' -ErrorAction SilentlyContinue).Installed) { exit 1 }"
+        default: "true"
+      verify:
+        windows: "(Get-ItemProperty 'HKLM:\\SOFTWARE\\Microsoft\\VisualStudio\\14.0\\VC\\Runtimes\\x64').Version"
+        default: "echo v14"
+      expect: "v?14"
 
   - id: vs-build-tools
     name: Visual Studio Build Tools (C++)

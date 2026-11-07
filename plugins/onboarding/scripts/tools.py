@@ -185,6 +185,10 @@ def winget_install(winget_id: str, route: dict) -> tuple[bool, str]:
     args = ["winget", "install", "--id", winget_id, *WINGET_FLAGS]
     if route.get("scope"):
         args += ["--scope", route["scope"]]
+    if route.get("scope") == "user":
+        # Dependencies such as the Visual C++ runtime install machine-wide and
+        # would show an admin prompt. The elevated batch installs them instead.
+        args += ["--skip-dependencies"]
     if route.get("installer_type"):
         args += ["--installer-type", route["installer_type"]]
     if route.get("override"):

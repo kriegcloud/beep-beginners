@@ -127,13 +127,14 @@ case "${1:-help}" in
 
   click)
     own_lock
-    W=1280 H=800
-    x=$(( ${2:?X} * 32767 * 100 / 60 / W )); y=$(( ${3:?Y} * 32767 * 100 / 60 / H ))
+    # Electron title bars ignore a bare jump-and-click, so glide in, hover, then click.
     q() { v qemu-monitor-command "$NAME" "$1" >/dev/null; }
-    q "{\"execute\":\"input-send-event\",\"arguments\":{\"events\":[{\"type\":\"abs\",\"data\":{\"axis\":\"x\",\"value\":$x}},{\"type\":\"abs\",\"data\":{\"axis\":\"y\",\"value\":$y}}]}}"
-    sleep 0.2
+    mv() { local x=$(( $1 * 32767 * 100 / 60 / 1280 )) y=$(( $2 * 32767 * 100 / 60 / 800 ))
+      q "{\"execute\":\"input-send-event\",\"arguments\":{\"events\":[{\"type\":\"abs\",\"data\":{\"axis\":\"x\",\"value\":$x}},{\"type\":\"abs\",\"data\":{\"axis\":\"y\",\"value\":$y}}]}}"; }
+    X=${2:?X} Y=${3:?Y}
+    mv $((X - 8)) $((Y + 3)); sleep 0.4; mv $((X - 3)) $((Y + 1)); sleep 0.4; mv "$X" "$Y"; sleep 1
     q '{"execute":"input-send-event","arguments":{"events":[{"type":"btn","data":{"down":true,"button":"left"}}]}}'
-    sleep 0.1
+    sleep 0.25
     q '{"execute":"input-send-event","arguments":{"events":[{"type":"btn","data":{"down":false,"button":"left"}}]}}'
     ;;
 
