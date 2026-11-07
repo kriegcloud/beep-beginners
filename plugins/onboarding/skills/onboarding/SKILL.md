@@ -131,7 +131,9 @@ user's OK. Each may ask for the computer password.
 
 ### 7. signin-github
 
-1. Run `gh auth login --web --hostname github.com --git-protocol https`.
+1. Run `gh auth login --web --hostname github.com --git-protocol https --scopes admin:public_key`.
+   Test runs add the scopes in `BEEP_BEGINNERS_GH_EXTRA_SCOPES` (comma-separated), such
+   as `delete_repo`, so the test reset can remove its repos.
    It prints a one-time code and opens github.com/login/device. If the user
    has no GitHub account, open github.com/signup first.
 2. Tell the user it's the GitHub sign-in page. With Claude in Chrome, type the

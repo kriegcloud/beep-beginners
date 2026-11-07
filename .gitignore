@@ -1,0 +1,3 @@
+/tests/vm/evidence/*.tmp
+/tests/vm/fixtures/*.json
+__pycache__/

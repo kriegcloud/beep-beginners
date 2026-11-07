@@ -100,6 +100,30 @@ was kept as `pre-tools-<name>`. beep-effect's `harness.template.ps1` installs th
 same tools, so a rebuilt VM gets them. Onboarding's detection therefore has to
 recognize and skip these tools on the test VM.
 
+### D33. Git pushes over HTTPS through the GitHub CLI
+
+Onboarding still makes an SSH key in 1Password and adds it to GitHub, as the
+spec asks. Git itself pushes over HTTPS with `gh auth setup-git`. With
+1Password's SSH agent, every push would wait for a 1Password approval, so the
+automatic end-of-session backup (D25) would stall. Using that agent on Windows
+also means disabling Windows' own SSH agent service, which needs admin rights.
+
+### D34. Build notes that changed the phase 3 tree
+
+- `template/` lives at `plugins/onboarding/template/`. Claude Code copies only
+  a plugin's own folder into its cache, so a top-level `template/` would never
+  reach the user's machine.
+- Claude loads project settings only from the folder a session opens on. So
+  `pokeseller` and `job-hunt` are enabled for the whole workspace by the seed,
+  not per folder. They only do anything for listing drafts and job-hunt
+  requests. Per-folder rules still load only in their folder, through each
+  folder's `AGENTS.md` and `CLAUDE.md`.
+- `CHANGELOG-FOR-ED.md` is gitignored and rebuilt from commit messages at the
+  start and end of each session. Committing it would add a commit to the
+  history on every session.
+- Test runs set `BEEP_BEGINNERS_AGENTS_VAULT` and `BEEP_BEGINNERS_KEY_VAULT` to
+  the `beep-beginners-test` vault, so they never write to a real vault.
+
 ## Facts from research that shape the build
 
 - 1Password Individual is about $36 for the first year, then about $48 a year.
