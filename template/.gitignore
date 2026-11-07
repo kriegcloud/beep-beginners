@@ -1,0 +1,35 @@
+# Made by Claude from the git history at the start and end of each session.
+CHANGELOG-FOR-ED.md
+
+# Secrets never go in git. Agents use 1Password references (op://...) instead.
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.pfx
+*.p12
+secrets/
+bitwarden_export*
+
+# OpenKnowledge keeps its own settings here. Its agent setup files stay out of
+# git until we decide to use its MCP (decision 20).
+.ok/
+.cursor/
+.codex/
+opencode.json
+.mcp.json
+
+# Obsidian, if it's ever installed.
+.obsidian/workspace*
+
+# Python and editor clutter.
+__pycache__/
+.venv/
+.ipynb_checkpoints/
+
+# Windows and Office clutter.
+Thumbs.db
+desktop.ini
+~$*
+*.tmp

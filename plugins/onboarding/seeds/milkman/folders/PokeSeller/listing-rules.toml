@@ -1,0 +1,22 @@
+# Mercari listing rules. The listing checker and the mercari-listing skill read this.
+title_max = 80
+# Never Japanese characters, even for Japanese cards: use the English card
+# name and say "Japanese" in words.
+no_japanese = true
+# Leave the price empty and never press List.
+price_must_be_empty = true
+# Grading cert numbers never go in the title or description.
+cert_number_pattern = '\b(cert(ification)?\s*(#|no\.?|number)?\s*:?\s*)?\d{7,10}\b'
+
+[graded]
+# Graded slabs: condition is always Good, the grade line is just e.g.
+# "Graded PSA 8 NM-MT", and this shipping line always appears. Notable slabs
+# may add a selling point, e.g. "CGC 10 Pop 2 - a beautiful copy of this card!"
+condition = "Good"
+shipping_line = "Slab ships in a bubble mailer with protection."
+
+[mercari]
+# Saved template: Trading Cards > Single Cards, brand Pokemon, standard
+# closing text. Card-specific lines go above the template text.
+template_name = "Poke"
+card_lines_above_template = true
