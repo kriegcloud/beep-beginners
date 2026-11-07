@@ -1,0 +1,250 @@
+# Draft of plugins/onboarding/tools.yaml (phase 3 proposal, 2026-11-06).
+# One entry per tool. Detection, installs, verification and the VM evidence
+# all read this file. Commands run in Windows PowerShell 5.1 on Windows and in
+# sh elsewhere. `{tmp}` is a fresh temp folder the runner creates per check.
+#
+# Fields:
+#   id, name        stable key and display name
+#   why             one plain sentence shown to the user before the install
+#   when            always | subscription:<chatgpt|grok|gemini> | request
+#   windows.winget  exact winget id (installs pass -e --source winget
+#                   --accept-package-agreements --accept-source-agreements
+#                   --disable-interactivity)
+#   windows.scope   user | machine. Machine installs are batched into one
+#                   elevated PowerShell session, so the user sees one UAC prompt.
+#   windows.override / windows.custom   extra installer args
+#   windows.script  non-winget install, run as written
+#   brew / apt      macOS and Linux routes (apt may be a script: line)
+#   detect          cheap presence check; exit 0 means present
+#   verify          check by use; exit 0 and the expect pattern mean working
+#   success_codes   winget exit codes treated as success (already installed,
+#                   no applicable update)
+schema: beep-beginners/tools/v1
+defaults:
+  success_codes: ["0x0", "0x8A15002B", "0x8A150061", "0x8A15010D"]
+
+tools:
+  - id: claude-desktop
+    name: Claude desktop app
+    why: "This is the app you use to talk to Claude and start work."
+    when: always
+    windows: { winget: Anthropic.Claude, scope: user }
+    brew: { cask: claude }
+    detect: { windows: "Get-AppxPackage *Claude* | Select -First 1; if (-not $?) { exit 1 }", default: "test -d /Applications/Claude.app" }
+    verify: { windows: "Test-Path \"$env:APPDATA\\Claude\\config.json\"", expect: "True" }
+
+  - id: claude-code
+    name: Claude Code
+    why: "Lets Claude run the setup scripts and the helpers that keep your work safe."
+    when: always
+    windows: { script: "irm https://claude.ai/install.ps1 | iex", scope: user }
+    brew: { cask: claude-code }
+    apt: { script: "curl -fsSL https://claude.ai/install.sh | bash" }
+    detect: "claude --version"
+    verify: { cmd: "claude doctor", expect: "" }
+
+  - id: chrome
+    name: Google Chrome
+    why: "Claude uses Chrome to do the website steps for you."
+    when: always
+    windows: { winget: Google.Chrome.EXE, scope: user }
+    brew: { cask: google-chrome }
+    detect: { windows: "@(\"$env:ProgramFiles\\Google\\Chrome\\Application\\chrome.exe\",\"$env:LOCALAPPDATA\\Google\\Chrome\\Application\\chrome.exe\") | ? { Test-Path $_ } | Select -First 1" }
+    verify: { windows: "(Get-Item (@(\"$env:ProgramFiles\\Google\\Chrome\\Application\\chrome.exe\",\"$env:LOCALAPPDATA\\Google\\Chrome\\Application\\chrome.exe\") | ? { Test-Path $_ } | Select -First 1)).VersionInfo.ProductVersion", expect: "^\\d+\\." }
+
+  - id: git
+    name: Git
+    why: "Keeps a history of every change, so nothing is ever lost."
+    when: always
+    windows: { winget: Git.Git, scope: user }
+    brew: { formula: git }
+    apt: { package: git }
+    detect: "git --version"
+    verify: { cmd: "git init -q {tmp} && git -C {tmp} -c user.name=probe -c user.email=probe@localhost commit -q --allow-empty -m probe && git -C {tmp} log --oneline", expect: "probe" }
+
+  - id: gh
+    name: GitHub CLI
+    why: "Lets Claude save your work to your private GitHub account."
+    when: always
+    windows: { winget: GitHub.cli, scope: user, installer_type: portable }
+    brew: { formula: gh }
+    apt: { script: "see https://github.com/cli/cli/blob/trunk/docs/install_linux.md" }
+    detect: "gh --version"
+    verify: { cmd: "gh auth status", expect: "Logged in" }
+
+  - id: onepassword
+    name: 1Password
+    why: "Keeps your passwords safe and lets Claude use a secret without ever seeing it."
+    when: always
+    windows: { winget: AgileBits.1Password, scope: user }
+    brew: { cask: 1password }
+    detect: { windows: "if (-not (Get-AppxPackage *1Password*) -and -not (Test-Path \"$env:LOCALAPPDATA\\1Password\\app\")) { exit 1 }" }
+    verify: { cmd: "op whoami", expect: "URL:" }
+
+  - id: op
+    name: 1Password CLI
+    why: "The part of 1Password that Claude's helpers talk to."
+    when: always
+    windows: { winget: AgileBits.1Password.CLI, scope: user }
+    brew: { cask: 1password-cli }
+    detect: "op --version"
+    verify: { cmd: "op vault list --format json", expect: "Agents" }
+
+  - id: uv
+    name: uv (runs Python)
+    why: "Runs the small Python helpers. It's also how you'll run Python yourself."
+    when: always
+    windows: { winget: astral-sh.uv, scope: user }
+    brew: { formula: uv }
+    apt: { script: "curl -LsSf https://astral.sh/uv/install.sh | sh" }
+    detect: "uv --version"
+    verify: { cmd: "uv run --no-project --python 3.13 python -c \"print('ok')\"", expect: "ok" }
+
+  - id: python
+    name: Python 3.13
+    why: "The language you're learning, and what PokeLedger uses."
+    when: always
+    windows: { script: "uv python install 3.13 --default --preview-features python-install-default", scope: user }
+    brew: { script: "uv python install 3.13" }
+    apt: { script: "uv python install 3.13" }
+    detect: "uv python find 3.13"
+    verify: { cmd: "uv run --no-project --python 3.13 python -c \"import sys; print(sys.version_info[:2])\"", expect: "\\(3, 13\\)" }
+
+  - id: node
+    name: Node.js (through fnm)
+    why: "Some Claude add-ons need Node to run."
+    when: always
+    windows: { winget: Schniz.fnm, scope: user, post: "fnm install --lts; fnm default lts-latest" }
+    brew: { formula: fnm, post: "fnm install --lts" }
+    apt: { script: "curl -fsSL https://fnm.vercel.app/install | bash && fnm install --lts" }
+    detect: "fnm --version"
+    verify: { cmd: "fnm exec --using=default node -e \"console.log('ok')\"", expect: "ok" }
+
+  - id: bun
+    name: Bun
+    why: "A fast tool for TypeScript projects. Nothing in the kit depends on it."
+    when: always
+    windows: { winget: Oven-sh.Bun, scope: user }
+    brew: { formula: bun }
+    apt: { script: "curl -fsSL https://bun.sh/install | bash" }
+    detect: "bun --version"
+    verify: { cmd: "bun -e \"console.log('ok')\"", expect: "ok" }
+
+  - id: vs-build-tools
+    name: Visual Studio Build Tools (C++)
+    why: "Rust needs these to build programs on Windows. It's a big download."
+    when: always
+    windows:
+      winget: Microsoft.VisualStudio.BuildTools
+      scope: machine
+      override: "--wait --passive --norestart --add Microsoft.VisualStudio.Workload.VCTools --includeRecommended"
+    detect: { windows: "& \"${env:ProgramFiles(x86)}\\Microsoft Visual Studio\\Installer\\vswhere.exe\" -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath" }
+    verify: { windows: "same as rust verify", expect: "" }
+
+  - id: rust
+    name: Rust
+    why: "Builds some tools from source."
+    when: always
+    windows: { winget: Rustlang.Rustup, scope: user, post: "rustup default stable" }
+    brew: { formula: rustup, post: "rustup default stable" }
+    apt: { script: "curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y" }
+    detect: "cargo --version"
+    verify: { cmd: "cargo new -q {tmp}/hello && cargo run -q --manifest-path {tmp}/hello/Cargo.toml", expect: "Hello, world!" }
+
+  - id: tailscale
+    name: Tailscale
+    why: "A private link so Benjamin can help when you ask him to."
+    when: always
+    windows: { winget: Tailscale.Tailscale, scope: machine }
+    brew: { cask: tailscale-app }
+    apt: { script: "curl -fsSL https://tailscale.com/install.sh | sh" }
+    detect: "tailscale version"
+    verify: { cmd: "tailscale status --json", expect: "\"BackendState\": \"Running\"" }
+
+  - id: openssh-server
+    name: Windows OpenSSH Server
+    why: "Lets Benjamin run fixes on your PC over Tailscale, only when you ask."
+    when: always
+    windows: { script: "Add-WindowsCapability -Online -Name OpenSSH.Server~~~~0.0.1.0", scope: machine }
+    detect: { windows: "(Get-WindowsCapability -Online -Name OpenSSH.Server*).State -eq 'Installed'" }
+    verify: { windows: "(Get-Service sshd).Status; (Get-NetFirewallRule -Name beep-beginners-ssh-tailscale).Enabled", expect: "Running" }
+
+  - id: openknowledge
+    name: OpenKnowledge
+    why: "An app for reading and editing your notes and plans."
+    when: always
+    windows: { script: "github-release:inkeep/open-knowledge:OpenKnowledge-Setup-x64.exe:/S", scope: user }
+    detect: { windows: "Test-Path \"$env:LOCALAPPDATA\\Programs\\OpenKnowledge\"" }
+    verify: { windows: "Test-Path \"$env:LOCALAPPDATA\\Programs\\OpenKnowledge\\OpenKnowledge.exe\"", expect: "True" }
+
+  - id: windows-terminal
+    name: Windows Terminal
+    why: "Comes with Windows 11. Checked, and installed only if it's missing."
+    when: always
+    windows: { winget: Microsoft.WindowsTerminal, scope: user }
+    detect: { windows: "if (-not (Get-AppxPackage Microsoft.WindowsTerminal)) { exit 1 }" }
+    verify: { windows: "(Get-AppxPackage Microsoft.WindowsTerminal).Version", expect: "^1\\." }
+
+  - id: pwsh
+    name: PowerShell 7
+    why: "A newer Windows command shell some tools prefer."
+    when: always
+    windows: { winget: Microsoft.PowerShell, scope: machine }
+    brew: { formula: powershell }
+    detect: "pwsh --version"
+    verify: { cmd: "pwsh -NoProfile -Command \"$PSVersionTable.PSVersion.Major\"", expect: "^7" }
+
+  - id: vscode
+    name: VS Code
+    why: "The code editor you use for PokeLedger notebooks."
+    when: always
+    windows: { winget: Microsoft.VisualStudioCode, scope: user }
+    brew: { cask: visual-studio-code }
+    detect: "code --version"
+    verify: { cmd: "code --list-extensions", expect: "" }
+
+  # Optional, from the subscriptions question (decision 21).
+  - id: chatgpt-codex
+    name: ChatGPT and Codex
+    why: "You pay for ChatGPT, so Claude can hand some work to Codex and save your Claude limits."
+    when: subscription:chatgpt
+    windows: { winget: OpenAI.ChatGPT, scope: user, also: [OpenAI.Codex] }
+    brew: { cask: [chatgpt, codex] }
+    detect: "codex --version"
+    verify: { cmd: "codex login status", expect: "Logged in" }
+
+  - id: grok
+    name: Grok CLI
+    why: "You pay for Grok, so Claude can use it for web research."
+    when: subscription:grok
+    windows: { winget: xAI.GrokBuild, scope: user }
+    brew: { cask: grok-build }
+    detect: "grok --version"
+    verify: { cmd: "grok --version", expect: "" }
+
+  - id: gemini
+    name: Gemini CLI
+    why: "You pay for Gemini, so Claude can hand some work to it."
+    when: subscription:gemini
+    windows: { script: "fnm exec --using=default npm install -g @google/gemini-cli", scope: user }
+    brew: { formula: gemini-cli }
+    detect: "gemini --version"
+    verify: { cmd: "gemini --version", expect: "" }
+
+  - id: cliproxyapi
+    name: CLIProxyAPI
+    why: "Runs in the background so Claude's helpers can use your other AI subscription."
+    when: subscription:any
+    windows: { winget: LuisPater.CLIProxyAPI, scope: user, post: "register scheduled task beep-beginners-cliproxyapi at logon" }
+    brew: { formula: cliproxyapi }
+    detect: "Get-Command cli-proxy-api"
+    verify: { cmd: "curl.exe -s http://127.0.0.1:8317/v1/models", expect: "\"data\"" }
+
+  - id: obsidian
+    name: Obsidian
+    why: "Another notes app, installed only because you asked for it."
+    when: request
+    windows: { winget: Obsidian.Obsidian, scope: user }
+    brew: { cask: obsidian }
+    detect: { windows: "winget list --id Obsidian.Obsidian -e" }
+    verify: { windows: "Test-Path \"$env:LOCALAPPDATA\\Programs\\Obsidian\\Obsidian.exe\"", expect: "True" }

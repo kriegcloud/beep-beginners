@@ -1,0 +1,77 @@
+Name                                                     Id                                                                                Version              Available           Source
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+1Password                                                MSIX\DC5C6510.2032887045529_8.12.42.0_x64__2v019pwa6amcg                          8.12.42.0                                
+App Installer                                            Microsoft.AppInstaller                                                            1.29.379.0           1.29.380            winget
+AV1 Video Extension                                      MSIX\Microsoft.AV1VideoExtension_2.0.35.0_x64__8wekyb3d8bbwe                      2.0.35.0                                 
+AVC Encoder Video Extension                              MSIX\Microsoft.AVCEncoderVideoExtension_1.1.47.0_x64__8wekyb3d8bbwe               1.1.47.0                                 
+ChatGPT                                                  OpenAI.ChatGPT                                                                    26.1016.8622.0       26.1103.3517.0      winget
+Claude                                                   Anthropic.Claude                                                                  3.6556.1                                 winget
+Dev Home                                                 MSIX\Microsoft.Windows.DevHome_0.0.0.0_x64__8wekyb3d8bbwe                         0.0.0.0                                  
+Feedback Hub                                             MSIX\Microsoft.WindowsFeedbackHub_2.2608.303.0_x64__8wekyb3d8bbwe                 2.2608.303.0                             
+Game Bar                                                 MSIX\Microsoft.XboxGamingOverlay_7.326.8061.0_x64__8wekyb3d8bbwe                  7.326.8061.0                             
+Game Speech Window                                       MSIX\Microsoft.XboxSpeechToTextOverlay_1.97.17002.0_x64__8wekyb3d8bbwe            1.97.17002.0                             
+Get Help                                                 MSIX\Microsoft.GetHelp_10.2409.42492.0_x64__8wekyb3d8bbwe                         10.2409.42492.0                          
+HEIF Image Extension                                     MSIX\Microsoft.HEIFImageExtension_1.2.48.0_x64__8wekyb3d8bbwe                     1.2.48.0                                 
+HEVC Video Extensions from Device Manufacturer           MSIX\Microsoft.HEVCVideoExtension_2.5.33.0_x64__8wekyb3d8bbwe                     2.5.33.0                                 
+Microsoft .Net Native Framework Package 2.2              MSIX\Microsoft.NET.Native.Framework.2.2_2.2.29512.0_x64__8wekyb3d8bbwe            2.2.29512.0                              
+Microsoft .Net Native Framework Package 2.2              MSIX\Microsoft.NET.Native.Framework.2.2_2.2.29512.0_x86__8wekyb3d8bbwe            2.2.29512.0                              
+Microsoft .Net Native Runtime Package 2.2                Microsoft.DotNet.Native.Runtime                                                   2.2.28604.0                              winget
+Microsoft .Net Native Runtime Package 2.2                Microsoft.DotNet.Native.Runtime                                                   2.2.28604.0                              winget
+Microsoft Bing                                           MSIX\Microsoft.BingSearch_1.1.43.0_x64__8wekyb3d8bbwe                             1.1.43.0                                 
+Microsoft Clipchamp                                      MSIX\Clipchamp.Clipchamp_4.7.10020.0_x64__yxz26nhyzhsrt                           4.7.10020.0                              
+Microsoft Edge                                           Microsoft.Edge                                                                    155.0.4283.62        156.0.4314.58       winget
+Microsoft Edge                                           MSIX\Microsoft.MicrosoftEdge.Stable_155.0.4283.45_neutral__8wekyb3d8bbwe          155.0.4283.45                            
+Microsoft News                                           MSIX\Microsoft.BingNews_1.0.2.0_x64__8wekyb3d8bbwe                                1.0.2.0                                  
+Microsoft OneDrive                                       Microsoft.OneDrive                                                                26.183.0920.0005                         winget
+Microsoft Photos                                         MSIX\Microsoft.Windows.Photos_2026.11090.22001.0_x64__8wekyb3d8bbwe               2026.11090.22001.0                       
+Microsoft Sticky Notes                                   MSIX\Microsoft.MicrosoftStickyNotes_4.0.6104.0_x64__8wekyb3d8bbwe                 4.0.6104.0                               
+Microsoft Store                                          MSIX\Microsoft.WindowsStore_22609.1401.5.0_x64__8wekyb3d8bbwe                     22609.1401.5.0                           
+Microsoft Teams                                          Microsoft.Teams                                                                   26260.1701.5139.3736 26276.513.5241.9675 winget
+Microsoft To Do                                          MSIX\Microsoft.Todos_0.178.8571.0_x64__8wekyb3d8bbwe                              0.178.8571.0                             
+Microsoft Visual C++ 2015 UWP Desktop Runtime Package    Microsoft.VCLibs.Desktop.14                                                       14.0.33728.0                             winget
+Microsoft Visual C++ 2015 UWP Desktop Runtime Package    Microsoft.VCLibs.Desktop.14                                                       14.0.33728.0                             winget
+Microsoft Visual C++ 2015 UWP Runtime Package            Microsoft.VCLibs.14                                                               14.0.33519.0                             winget
+Microsoft Visual C++ 2015 UWP Runtime Package            Microsoft.VCLibs.14                                                               14.0.33519.0                             winget
+Microsoft Windows Application Compatibility Fix Database ARP\Machine\X64\{22221111-1111-1111-1111-111111111111}.sdb                        Unknown                                  
+Microsoft.UI.Xaml.2.8                                    Microsoft.UI.Xaml.2.8                                                             8.2511.26001.0                           winget
+Microsoft.UI.Xaml.2.8                                    Microsoft.UI.Xaml.2.8                                                             8.2501.31001.0                           winget
+Microsoft.UI.Xaml.2.8                                    Microsoft.UI.Xaml.2.8                                                             8.2501.31001.0                           winget
+Mobile devices                                           MSIX\MicrosoftWindows.CrossDevice_0.26082.74.0_x64__cw5n1h2txyewy                 0.26082.74.0                             
+MPEG-2 Video Extension                                   MSIX\Microsoft.MPEG2VideoExtension_1.2.32.0_x64__8wekyb3d8bbwe                    1.2.32.0                                 
+MSN Weather                                              MSIX\Microsoft.BingWeather_4.54.63045.0_x64__8wekyb3d8bbwe                        4.54.63045.0                             
+Outlook for Windows                                      Microsoft.Outlook                                                                 1.2026.922.300                           winget
+Paint                                                    MSIX\Microsoft.Paint_11.2605.81.0_x64__8wekyb3d8bbwe                              11.2605.81.0                             
+Phone Link                                               MSIX\Microsoft.YourPhone_0.26082.121.0_x64__8wekyb3d8bbwe                         0.26082.121.0                            
+Power Automate                                           MSIX\Microsoft.PowerAutomateDesktop_1.0.2159.0_x64__8wekyb3d8bbwe                 1.0.2159.0                               
+QEMU guest agent                                         SoftwareFreedomConservancy.QEMUGuestAgent                                         7.4.5                110.0.2             winget
+Quick Assist                                             MSIX\MicrosoftCorporationII.QuickAssist_2.0.29.0_x64__8wekyb3d8bbwe               2.0.29.0                                 
+Raw Image Extension                                      MSIX\Microsoft.RawImageExtension_2.5.35.0_x64__8wekyb3d8bbwe                      2.5.35.0                                 
+Snipping Tool                                            MSIX\Microsoft.ScreenSketch_11.2608.41.0_x64__8wekyb3d8bbwe                       11.2608.41.0                             
+Solitaire & Casual Games                                 MSIX\Microsoft.MicrosoftSolitaireCollection_4.27.9181.0_x64__8wekyb3d8bbwe        4.27.9181.0                              
+SPICE Guest Tools 0.141                                  ARP\Machine\X86\SpiceGuestTools                                                   0.141                                    
+Start Experiences App                                    MSIX\Microsoft.StartExperiencesApp_1.398.2.0_x64__8wekyb3d8bbwe                   1.398.2.0                                
+Store Experience Host                                    MSIX\Microsoft.StorePurchaseApp_22608.1401.1.0_x64__8wekyb3d8bbwe                 22608.1401.1.0                           
+VP9 Video Extensions                                     MSIX\Microsoft.VP9VideoExtensions_1.2.20.0_x64__8wekyb3d8bbwe                     1.2.20.0                                 
+Web Media Extensions                                     MSIX\Microsoft.WebMediaExtensions_2.1.51.0_x64__8wekyb3d8bbwe                     2.1.51.0                                 
+WebP Image Extension                                     MSIX\Microsoft.WebpImageExtension_1.2.31.0_x64__8wekyb3d8bbwe                     1.2.31.0                                 
+Widgets Platform Runtime                                 MSIX\Microsoft.WidgetsPlatformRuntime_1.6.19.0_x64__8wekyb3d8bbwe                 1.6.19.0                                 
+Windows Application Compatibility Enhancements           MSIX\Microsoft.ApplicationCompatibilityEnhancements_1.2511.9.0_x64__8wekyb3d8bbwe 1.2511.9.0                               
+Windows Calculator                                       MSIX\Microsoft.WindowsCalculator_11.2607.0.0_x64__8wekyb3d8bbwe                   11.2607.0.0                              
+Windows Camera                                           MSIX\Microsoft.WindowsCamera_2026.2608.1.0_x64__8wekyb3d8bbwe                     2026.2608.1.0                            
+Windows Clock                                            MSIX\Microsoft.WindowsAlarms_1.1.158.0_x64__8wekyb3d8bbwe                         1.1.158.0                                
+Windows Media Player                                     MSIX\Microsoft.ZuneMusic_11.2607.16.0_x64__8wekyb3d8bbwe                          11.2607.16.0                             
+Windows Notepad                                          MSIX\Microsoft.WindowsNotepad_11.2607.14.0_x64__8wekyb3d8bbwe                     11.2607.14.0                             
+Windows Package Manager Source (winget) V2               MSIX\Microsoft.Winget.Source_2026.1106.1852.34_neutral__8wekyb3d8bbwe             2026.1106.1852.34                        
+Windows Security                                         MSIX\Microsoft.SecHealthUI_1000.29628.1000.0_x64__8wekyb3d8bbwe                   1000.29628.1000.0                        
+Windows Sound Recorder                                   MSIX\Microsoft.WindowsSoundRecorder_1.1.127.0_x64__8wekyb3d8bbwe                  1.1.127.0                                
+Windows Terminal                                         Microsoft.WindowsTerminal                                                         1.24.12741.0         1.25.2733.0         winget
+Windows Web Experience Pack                              MSIX\MicrosoftWindows.Client.WebExperience_526.21100.40.0_x64__cw5n1h2txyewy      526.21100.40.0                           
+WindowsAppRuntime.1.7                                    Microsoft.WindowsAppRuntime.1.7                                                   1.7.9                                    winget
+WindowsAppRuntime.1.7                                    Microsoft.WindowsAppRuntime.1.7                                                   1.7.9                                    winget
+WindowsAppRuntime.1.8                                    Microsoft.WindowsAppRuntime.1.8                                                   > 1.8.10                                 winget
+WindowsAppRuntime.1.8                                    Microsoft.WindowsAppRuntime.1.8                                                   > 1.8.10                                 winget
+WindowsAppRuntime.2                                      Microsoft.WindowsAppRuntime.2                                                     2.5.1.0                                  winget
+WindowsAppRuntime.2                                      Microsoft.WindowsAppRuntime.2                                                     2.5.1.0                                  winget
+XBOX                                                     MSIX\Microsoft.GamingApp_2610.1001.20.0_x64__8wekyb3d8bbwe                        2610.1001.20.0                           
+Xbox Identity Provider                                   MSIX\Microsoft.XboxIdentityProvider_12.130.16001.0_x64__8wekyb3d8bbwe             12.130.16001.0                           
+Xbox TCUI                                                MSIX\Microsoft.Xbox.TCUI_1.24.10001.0_x64__8wekyb3d8bbwe                          1.24.10001.0                             
