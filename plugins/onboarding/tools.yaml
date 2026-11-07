@@ -214,7 +214,9 @@ tools:
     why: "Builds some tools from source."
     when: always
     needs: [vs-build-tools]
-    windows: { winget: Rustlang.Rustup, scope: user, post: "rustup default stable" }
+    # A minimal profile: the default one unpacks rust-docs for about 17 minutes
+    # on the test VM (2026-11-07). Docs are a web page away.
+    windows: { winget: Rustlang.Rustup, scope: user, override: "-y --profile minimal", post: "rustup default stable" }
     macos: { brew: rustup, post: "rustup default stable" }
     linux: { script: "curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y" }
     check:

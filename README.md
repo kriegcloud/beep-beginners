@@ -8,7 +8,7 @@ it. You start Claude and ask for things.
 
 ## Getting set up
 
-1. Open the Claude app and switch to **Code**.
+1. Open the Claude app and switch to **Code** (the `</>` button at the top left).
 2. Pick any empty folder (make one on the Desktop called `setup`).
 3. Paste this and press Enter:
 

@@ -39,6 +39,9 @@ sys.path.insert(0, str(HERE))
 from state import load_state, save_state, state_dir  # noqa: E402
 
 WINDOWS = os.name == "nt"
+# Installers are console programs. Without this, each one opens its own
+# console window in front of the user (rustup did, on the test VM, 2026-11-07).
+NO_WINDOW = {"creationflags": subprocess.CREATE_NO_WINDOW} if WINDOWS else {}
 OS_KEY = "windows" if WINDOWS else ("macos" if sys.platform == "darwin" else "linux")
 WINGET_FLAGS = ["-e", "--source", "winget", "--accept-package-agreements",
                 "--accept-source-agreements", "--disable-interactivity"]
@@ -119,7 +122,7 @@ def run(command: str, timeout: float = 600) -> subprocess.CompletedProcess[str]:
     argv = (["powershell.exe", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", command]
             if WINDOWS else ["sh", "-c", command])
     try:
-        return subprocess.run(argv, capture_output=True, text=True, timeout=timeout, check=False,
+        return subprocess.run(argv, capture_output=True, text=True, timeout=timeout, check=False, **NO_WINDOW,
                               encoding="utf-8", errors="replace")
     except subprocess.TimeoutExpired:
         return subprocess.CompletedProcess(argv, 124, "", f"timed out after {timeout:.0f}s")
@@ -226,13 +229,13 @@ def winget_install(winget_id: str, route: dict) -> tuple[bool, str]:
         args += ["--installer-type", route["installer_type"]]
     if route.get("override"):
         args += ["--override", route["override"]]
-    out = subprocess.run(args, capture_output=True, text=True, check=False, encoding="utf-8", errors="replace")
+    out = subprocess.run(args, capture_output=True, text=True, check=False, **NO_WINDOW, encoding="utf-8", errors="replace")
     code = out.returncode & 0xFFFFFFFF
     if code == 0x8A150010 and route.get("scope") == "user":
         # "No applicable installer": the package declares no scope (rustup is
         # one). It installs per user anyway, so try again without --scope.
         args = [a for a in args if a not in ("--scope", "user")]
-        out = subprocess.run(args, capture_output=True, text=True, check=False, encoding="utf-8", errors="replace")
+        out = subprocess.run(args, capture_output=True, text=True, check=False, **NO_WINDOW, encoding="utf-8", errors="replace")
         code = out.returncode & 0xFFFFFFFF
     ok = code in {c & 0xFFFFFFFF for c in load_manifest()["winget_success_codes"]}
     return ok, f"winget {winget_id} exit 0x{code:08X}"
@@ -247,7 +250,7 @@ def github_release_install(spec: str) -> tuple[bool, str]:
         return False, f"{asset} not found in {repo} {release.get('tag_name')}"
     target = Path(tempfile.gettempdir()) / asset
     urllib.request.urlretrieve(match["browser_download_url"], target)
-    out = subprocess.run([str(target), "/S"], capture_output=True, text=True, check=False, timeout=900)
+    out = subprocess.run([str(target), "/S"], capture_output=True, text=True, check=False, **NO_WINDOW, timeout=900)
     return out.returncode == 0, f"{asset} {release.get('tag_name')} exit {out.returncode}"
 
 
