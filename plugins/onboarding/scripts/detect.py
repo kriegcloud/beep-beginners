@@ -1,5 +1,5 @@
 # /// script
-# requires-python = ">=3.11"
+# requires-python = ">=3.11,<3.15"
 # dependencies = ["pyyaml>=6"]
 # ///
 """Everything a machine can tell onboarding about itself, as JSON.

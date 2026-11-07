@@ -121,7 +121,9 @@ tools:
     macos: { script: "uv python install 3.13 --default" }
     linux: { script: "uv python install 3.13 --default" }
     check:
-      detect: "uv python find 3.13"
+      detect:
+        windows: "if (-not (uv python list --only-installed --output-format json | ConvertFrom-Json | ? { $_.version -like '3.13*' })) { exit 1 }"
+        default: "uv python list --only-installed | grep -q 'cpython-3.13'"
       verify: "uv run --no-project --python 3.13 python -c \"import sys; print('py', sys.version_info[0], sys.version_info[1])\""
       expect: "py 3 13"
 
@@ -133,7 +135,7 @@ tools:
     macos: { brew: "cask:1password" }
     check:
       detect:
-        windows: "if (-not ((Get-AppxPackage *1Password*) -or (Test-Path \"$env:LOCALAPPDATA\\1Password\\app\"))) { exit 1 }"
+        windows: "if (-not ((Get-AppxPackage | ? { $_.Name -eq 'DC5C6510.2032887045529' -or $_.Name -like '*1Password*' }) -or (Test-Path \"$env:LOCALAPPDATA\\1Password\\app\"))) { exit 1 }"
         macos: "test -d /Applications/1Password.app"
       verify: "op whoami"
       expect: "URL"

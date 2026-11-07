@@ -114,7 +114,36 @@ case "${1:-help}" in
     ;;
 
   vm) own_lock; "$RUN" ssh "${2:?command}" ;;
-  vmi) own_lock; "$RUN" interactive "${2:?command}" ;;
+  vmi)
+    # Like vm-run.sh interactive, but each call writes its own log file, so a
+    # program that inherits the handle (say, an app started with `start`)
+    # can't lock the log for every later call.
+    own_lock
+    CMD="${2:?command}" WAIT="${WAIT_SECONDS:-60}" ID="milkman-$$-$RANDOM"
+    "$RUN" ssh "
+\$log = 'C:\\Users\\lawyer\\$ID.log'
+\$action = New-ScheduledTaskAction -Execute 'cmd.exe' -Argument ('/c ' + '${CMD//\'/\'\'}' + ' > ' + \$log + ' 2>&1')
+\$principal = New-ScheduledTaskPrincipal -UserId 'lawyer' -LogonType Interactive
+Register-ScheduledTask -TaskName '$ID' -Action \$action -Principal \$principal -Force | Out-Null
+Start-ScheduledTask -TaskName '$ID'
+\$deadline = (Get-Date).AddSeconds($WAIT)
+while ((Get-ScheduledTask -TaskName '$ID').State -eq 'Running' -and (Get-Date) -lt \$deadline) { Start-Sleep -Milliseconds 500 }
+Start-Sleep -Seconds 1
+Get-Content \$log -ErrorAction SilentlyContinue
+\$result = (Get-ScheduledTaskInfo -TaskName '$ID').LastTaskResult
+Unregister-ScheduledTask -TaskName '$ID' -Confirm:\$false
+Remove-Item \$log -ErrorAction SilentlyContinue
+exit \$result"
+    ;;
+  launch)
+    # Start a GUI app in the desktop session with no output redirection.
+    own_lock
+    "$RUN" ssh "\$a = New-ScheduledTaskAction -Execute '${2:?exe path}'
+\$p = New-ScheduledTaskPrincipal -UserId 'lawyer' -LogonType Interactive
+Register-ScheduledTask -TaskName milkman-launch -Action \$a -Principal \$p -Force | Out-Null
+Start-ScheduledTask -TaskName milkman-launch; Start-Sleep 3
+Unregister-ScheduledTask -TaskName milkman-launch -Confirm:\$false"
+    ;;
   type) own_lock; shift; "$PG/vm-type.sh" "$@" ;;
 
   shot)

@@ -1,5 +1,5 @@
 # /// script
-# requires-python = ">=3.11"
+# requires-python = ">=3.11,<3.15"
 # dependencies = ["pyyaml>=6"]
 # ///
 """Detect, install and verify the tools in tools.yaml (decision 11).
@@ -146,14 +146,47 @@ def detect_one(tool: dict) -> dict:
     return {"present": out.returncode == 0, "version": first_line(out.stdout) if out.returncode == 0 else ""}
 
 
+def detect_batch_windows(tools: list[dict]) -> dict:
+    """One PowerShell process for every detect check. Starting PowerShell
+    costs seconds on a fresh Windows machine, so one per tool is too slow."""
+    blocks = []
+    for tool in tools:
+        cmd = for_os(tool.get("check", {}).get("detect"))
+        if cmd is None:
+            continue
+        body = cmd.replace("{tmp}", tempfile.gettempdir().replace("\\", "/"))
+        # `exit` would end the shared process; inside the batch it must throw.
+        body = re.sub(r"\bexit\s+1\b", "throw 'missing'", body)
+        blocks.append(
+            f"$global:LASTEXITCODE = 0; $ok = $true; $out = ''\n"
+            f"try {{ $out = (& {{ {body} }} 2>$null | Out-String); if ($LASTEXITCODE -ne 0) {{ $ok = $false }} }} "
+            f"catch {{ $ok = $false }}\n"
+            f"if (-not $?) {{ $ok = $false }}\n"
+            f"[pscustomobject]@{{ id = '{tool['id']}'; present = $ok; version = (($out -split \"`n\") | ? {{ $_.Trim() }} | Select -First 1) }} | ConvertTo-Json -Compress\n")
+    script = "$ErrorActionPreference = 'Stop'\n" + "".join(blocks)
+    out = run(script, timeout=300)
+    found = {}
+    for line in out.stdout.splitlines():
+        line = line.strip()
+        if line.startswith("{"):
+            try:
+                row = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            found[row["id"]] = {"present": bool(row["present"]),
+                                "version": (row.get("version") or "").strip()[:160] if row["present"] else ""}
+    return found
+
+
 def detect_all(answers: dict) -> dict:
     refresh_path()
     manifest = load_manifest()
+    tools = [t for t in manifest["tools"] if wanted(t, answers)]
+    batch = detect_batch_windows(tools) if WINDOWS else {}
     result = {}
-    for tool in manifest["tools"]:
-        if not wanted(tool, answers):
-            continue
-        result[tool["id"]] = {"name": tool["name"], **detect_one(tool)}
+    for tool in tools:
+        row = batch.get(tool["id"]) if WINDOWS else None
+        result[tool["id"]] = {"name": tool["name"], **(row if row is not None else detect_one(tool))}
     return result
 
 
