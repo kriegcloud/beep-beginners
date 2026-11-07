@@ -27,6 +27,9 @@ STATE="${VM_STATE:-$HOME/VMs/practice-gateway}"
 CONN="qemu:///session"
 LOCK="$STATE/milkman.lock"
 RUN="$PG/vm-run.sh"
+# beep-effect's snapshot.sh and onboarding-proof.sh refuse to run while the
+# Milkman lock exists, unless the caller says it holds the lock.
+export BEEP_VM_LOCK_HOLDER=milkman
 v() { virsh -c "$CONN" "$@"; }
 
 for f in snapshot.sh vm-run.sh vm-type.sh; do
