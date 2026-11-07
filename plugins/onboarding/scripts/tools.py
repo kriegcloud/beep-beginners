@@ -228,6 +228,12 @@ def winget_install(winget_id: str, route: dict) -> tuple[bool, str]:
         args += ["--override", route["override"]]
     out = subprocess.run(args, capture_output=True, text=True, check=False, encoding="utf-8", errors="replace")
     code = out.returncode & 0xFFFFFFFF
+    if code == 0x8A150010 and route.get("scope") == "user":
+        # "No applicable installer": the package declares no scope (rustup is
+        # one). It installs per user anyway, so try again without --scope.
+        args = [a for a in args if a not in ("--scope", "user")]
+        out = subprocess.run(args, capture_output=True, text=True, check=False, encoding="utf-8", errors="replace")
+        code = out.returncode & 0xFFFFFFFF
     ok = code in {c & 0xFFFFFFFF for c in load_manifest()["winget_success_codes"]}
     return ok, f"winget {winget_id} exit 0x{code:08X}"
 

@@ -260,10 +260,10 @@ tools:
     windows: { script: "github-release:inkeep/open-knowledge:OpenKnowledge-Setup-x64.exe", scope: user }
     check:
       detect:
-        windows: "if (-not (Get-ChildItem \"$env:LOCALAPPDATA\\Programs\" -Filter 'OpenKnowledge*' -Directory -ErrorAction SilentlyContinue)) { exit 1 }"
+        windows: "if (-not (Get-ItemProperty 'HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\*' -ErrorAction SilentlyContinue | ? { $_.DisplayName -like 'OpenKnowledge*' })) { exit 1 }"
         default: "true"
       verify:
-        windows: "Get-ChildItem \"$env:LOCALAPPDATA\\Programs\" -Recurse -Depth 2 -Filter 'OpenKnowledge.exe' -ErrorAction SilentlyContinue | Select -First 1 | % { $_.VersionInfo.ProductVersion }"
+        windows: "$e = Get-ItemProperty 'HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\*' | ? { $_.DisplayName -like 'OpenKnowledge*' } | Select -First 1; $exe = ($e.DisplayIcon -split ',')[0]; (Get-Item $exe).VersionInfo.ProductVersion"
         default: "echo 0.0.0"
       expect: "\\d+\\.\\d+"
 
