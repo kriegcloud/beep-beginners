@@ -228,7 +228,9 @@ tools:
     name: Tailscale
     why: "A private link so your helper can fix things when you ask them to."
     when: always
-    windows: { winget: Tailscale.Tailscale, scope: machine }
+    # TS_NOLAUNCH keeps the Tailscale welcome window from popping up over the
+    # setup (it did on the test VM, 2026-11-07); step 14 signs in from the CLI.
+    windows: { winget: Tailscale.Tailscale, scope: machine, override: "/quiet /norestart TS_NOLAUNCH=1 TS_UNATTENDEDMODE=always" }
     macos: { brew: "cask:tailscale-app" }
     linux: { script: "curl -fsSL https://tailscale.com/install.sh | sh" }
     check:
