@@ -364,8 +364,14 @@ Step 'OpenSSH Server' {
 BATCH_HEAD = r"""# beep-beginners elevated batch. Runs once, behind one UAC prompt.
 $ErrorActionPreference = 'Continue'
 $results = [ordered]@{}
+# The user sees this window (it's the one Windows opened after their Yes), so
+# say what's happening instead of leaving it blank (seen on the test VM, 2026-11-07).
+Write-Host "beep-beginners is installing a few things. This window closes by itself when it's done."
+Write-Host "Build Tools is a large download and can take 10 to 20 minutes."
+Write-Host ""
 function Step($name, [scriptblock]$body) {
-  try { & $body; $results[$name] = 'ok' } catch { $results[$name] = "failed: $($_.Exception.Message)" }
+  Write-Host "Installing $name..."
+  try { & $body; $results[$name] = 'ok'; Write-Host "  done" } catch { $results[$name] = "failed: $($_.Exception.Message)"; Write-Host "  failed: $($_.Exception.Message)" }
 }
 $wingetFlags = @('-e','--source','winget','--accept-package-agreements','--accept-source-agreements','--disable-interactivity')
 """
