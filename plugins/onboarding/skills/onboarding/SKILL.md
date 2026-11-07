@@ -89,7 +89,9 @@ Every later browser step depends on this.
 1. If Chrome is missing, run `tools.py install-user --only chrome`.
 2. Test the connection: call a Claude in Chrome tool, such as listing tabs.
    If it works, this step is done.
-3. If it doesn't, open the Web Store page in Chrome:
+3. If it doesn't, open the Web Store page in Chrome, starting Chrome with
+   `--no-first-run --no-default-browser-check` so its own welcome screens
+   don't get in the way (seen on the test VM):
    `https://chromewebstore.google.com/detail/claude/fcoeoabgfenejglbffodgkkbkcdhcgfn`.
    Tell the user to click **Add to Chrome**, then **Add extension**, then
    sign in to Claude in the extension with the same account as this app.
