@@ -327,10 +327,12 @@ Step 'OpenSSH Server' {
     Add-WindowsCapability -Online -Name OpenSSH.Server~~~~0.0.1.0 | Out-Null
   }
   $keys = 'C:\ProgramData\ssh\administrators_authorized_keys'
-  $new = @(@KEYS@) | Where-Object { $_ -match '^(ssh-|ecdsa-|sk-)' }
+  # Wrap every list in @() at the point of use: PowerShell unwraps a one-item
+  # array into a plain string, and string + array concatenates into one line.
+  $new = @(@(@KEYS@) | Where-Object { $_ -match '^(ssh-|ecdsa-|sk-)' })
   if ($new.Count -gt 0) {
-    $have = if (Test-Path $keys) { @(Get-Content $keys) } else { @() }
-    $all = @($have + $new | Where-Object { $_ } | Select-Object -Unique)
+    $have = @(if (Test-Path $keys) { Get-Content $keys })
+    $all = @(@($have) + @($new) | Where-Object { $_ -match '^(ssh-|ecdsa-|sk-)' } | Select-Object -Unique)
     Set-Content -Path $keys -Value $all -Encoding ascii
     icacls $keys /inheritance:r /grant 'Administrators:F' /grant 'SYSTEM:F' | Out-Null
   }

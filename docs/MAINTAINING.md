@@ -48,6 +48,7 @@ a script), not the template.
 ```sh
 uv run --script plugins/guards/tests/test_rules.py
 uv run --script plugins/pokeseller/tests/test_listing_check.py
+uv run --script plugins/onboarding/tests/test_elevated_batch.py   # needs pwsh
 claude plugin validate .
 tests/vm/run.sh --help        # Windows proof, see tests/vm/README.md
 ```
