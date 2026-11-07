@@ -1,0 +1,9 @@
+{
+  "name": "job-hunt",
+  "description": "The morning job-hunt routine: find new postings, tailor a resume copy, update the tracker.",
+  "author": {
+    "name": "kriegcloud"
+  },
+  "license": "Apache-2.0",
+  "repository": "https://github.com/kriegcloud/beep-beginners"
+}

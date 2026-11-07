@@ -1,0 +1,9 @@
+{
+  "name": "guards",
+  "description": "Safety hooks for every workspace: blocks risky git commands and secret files, and backs work up to GitHub at the end of each session.",
+  "author": {
+    "name": "kriegcloud"
+  },
+  "license": "Apache-2.0",
+  "repository": "https://github.com/kriegcloud/beep-beginners"
+}

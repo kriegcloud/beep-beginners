@@ -1,0 +1,9 @@
+{
+  "name": "helper",
+  "description": "Help path: writes a help request, and turns the helper's remote access on or off.",
+  "author": {
+    "name": "kriegcloud"
+  },
+  "license": "Apache-2.0",
+  "repository": "https://github.com/kriegcloud/beep-beginners"
+}

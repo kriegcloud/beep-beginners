@@ -1,0 +1,9 @@
+{
+  "name": "unslop",
+  "description": "Removes AI writing tells from everything a person reads.",
+  "author": {
+    "name": "kriegcloud"
+  },
+  "license": "Apache-2.0",
+  "repository": "https://github.com/kriegcloud/beep-beginners"
+}

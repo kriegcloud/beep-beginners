@@ -1,0 +1,46 @@
+{
+  "name": "beep-beginners",
+  "owner": {
+    "name": "kriegcloud"
+  },
+  "metadata": {
+    "description": "A Claude-maintained workspace for people who don't code."
+  },
+  "plugins": [
+    {
+      "name": "onboarding",
+      "source": "./plugins/onboarding",
+      "description": "Sets up a Windows, macOS or Linux machine from scratch: apps, sign-ins, a private workspace on GitHub, and a help line. Run once."
+    },
+    {
+      "name": "guards",
+      "source": "./plugins/guards",
+      "description": "Safety hooks for every workspace: blocks risky git commands and secret files, and backs work up to GitHub at the end of each session."
+    },
+    {
+      "name": "explore",
+      "source": "./plugins/explore",
+      "description": "Turns 'I want to explore X' into a plain-English packet that can graduate into a goal."
+    },
+    {
+      "name": "unslop",
+      "source": "./plugins/unslop",
+      "description": "Removes AI writing tells from everything a person reads."
+    },
+    {
+      "name": "helper",
+      "source": "./plugins/helper",
+      "description": "Help path: writes a help request, and turns the helper's remote access on or off."
+    },
+    {
+      "name": "pokeseller",
+      "source": "./plugins/pokeseller",
+      "description": "Card-resale helpers: filling Mercari listings in Chrome and checking drafts against the folder's listing rules."
+    },
+    {
+      "name": "job-hunt",
+      "source": "./plugins/job-hunt",
+      "description": "The morning job-hunt routine: find new postings, tailor a resume copy, update the tracker."
+    }
+  ]
+}
