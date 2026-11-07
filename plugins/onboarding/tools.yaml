@@ -47,7 +47,7 @@ tools:
     name: Git
     why: "Keeps a history of every change, so nothing is ever lost."
     when: always
-    windows: { winget: Git.Git, scope: user }
+    windows: { script: "irm https://raw.githubusercontent.com/kriegcloud/beep-beginners/main/bootstrap.ps1 | iex", scope: user }
     macos: { brew: git }
     linux: { apt: git }
     check:

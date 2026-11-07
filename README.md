@@ -12,11 +12,9 @@ it. You start Claude and ask for things.
 2. Pick any empty folder (make one on the Desktop called `setup`).
 3. Paste this and press Enter:
 
-> Set up this computer with the beep-beginners kit, without any admin prompts.
-> Install Claude Code from claude.ai/install.ps1, uv from astral.sh/uv/install.ps1,
-> and git with winget using scope user. Then run claude plugin marketplace add
-> kriegcloud/beep-beginners and claude plugin install onboarding@beep-beginners
-> --scope user, and follow the onboarding skill from step 1.
+> Set up this computer with the beep-beginners kit. In PowerShell, run
+> irm https://raw.githubusercontent.com/kriegcloud/beep-beginners/main/bootstrap.ps1 | iex
+> and then follow the onboarding skill from step 1.
 
 Claude explains each step before it does it. You'll type your own passwords,
 approve sign-in codes, click **Add** once in Chrome, and click **Yes** once on

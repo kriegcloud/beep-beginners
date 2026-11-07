@@ -67,12 +67,14 @@ one sentence what's finished and what's next.
 
 ### 1. bootstrap
 
-Usually done by the pasted setup sentence (see the kit's README). Make sure
-`claude --version`, `git --version` and `uv --version` all work. Nothing in
-this step may show an admin prompt. Install git only with
-`winget install --id Git.Git -e --scope user --skip-dependencies ...`; without
-`--scope user`, winget picks the machine-wide installer, which asks for
-admin rights.
+Usually done by the pasted setup sentence, which runs the kit's
+`bootstrap.ps1` (see the kit's README). Make sure `claude --version`,
+`git --version` and `uv --version` all work. Nothing in this step may show
+an admin prompt. If something is missing, run the bootstrap again:
+`irm https://raw.githubusercontent.com/kriegcloud/beep-beginners/main/bootstrap.ps1 | iex`.
+It skips what's already installed. Don't install Git with winget here: Git's
+regular installer asks for admin even with `--scope user` (seen on the test
+VM, 2026-11-06). The bootstrap uses the portable build instead.
 
 ### 2. detect
 

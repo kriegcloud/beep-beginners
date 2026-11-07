@@ -124,6 +124,19 @@ also means disabling Windows' own SSH agent service, which needs admin rights.
 - Test runs set `BEEP_BEGINNERS_AGENTS_VAULT` and `BEEP_BEGINNERS_KEY_VAULT` to
   the `beep-beginners-test` vault, so they never write to a real vault.
 
+### D35. A PowerShell bootstrap, the one script that isn't Python [amends 8]
+
+The first VM run (2026-11-06) showed admin prompts before onboarding had even
+started. Git for Windows' installer asks for admin even with
+`winget --scope user`. uv's winget package pulls in the Visual C++ runtime,
+which also asks for admin. `bootstrap.ps1` installs Claude Code, uv (from
+its own installer) and Git (the portable build, unpacked under
+`%LOCALAPPDATA%\Programs\Git`) for the current user only, then adds the
+marketplace and the onboarding plugin. It has to be PowerShell because uv,
+and with it Python, is one of the things it installs. The pasted sentence
+became shorter: it runs this script. The Visual C++ runtime moved into the
+one elevated batch.
+
 ## Facts from research that shape the build
 
 - 1Password Individual is about $36 for the first year, then about $48 a year.
