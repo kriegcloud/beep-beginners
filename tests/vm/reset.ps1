@@ -17,10 +17,11 @@ foreach ($repo in @('workspace', 'PokeLedger')) {
     "deleted repo $login/$repo (exit $LASTEXITCODE)"
   }
 }
-# `gh ssh-key list` has no stable id column; ask the API for the ids.
-$ids = & gh api user/keys --jq '.[] | select(.title | startswith("GitHub ")) | .id' 2>$null
-foreach ($id in $ids) {
-  if ($id) { & gh ssh-key delete $id --yes; "deleted SSH key $id (exit $LASTEXITCODE)" }
+# `gh ssh-key list` has no stable id column, and PowerShell mangles the quotes
+# in a --jq filter, so parse the API's JSON here.
+$keys = (& gh api user/keys 2>$null) | ConvertFrom-Json
+foreach ($k in $keys) {
+  if ($k.title -like 'GitHub *') { & gh ssh-key delete $k.id --yes; "deleted SSH key $($k.id) (exit $LASTEXITCODE)" }
 }
 $ts = "$env:ProgramFiles\Tailscale\tailscale.exe"
 if (Test-Path $ts) { & $ts logout; 'logged out of Tailscale (remove the device from the test tailnet admin page)' }
