@@ -191,6 +191,31 @@ CLI). Until then agents use the CLI route from decision 13.
 - Step 3 trusts `facts.claude_in_chrome`, not a Claude in Chrome tool answer:
   on the VM the tool reached the host's Chrome through the shared account.
 
+### D39. Proposals to make onboarding faster for the user (2026-11-07, open)
+
+Raised by Benjamin while signing in on the test VM. Not built yet; each needs
+a yes before it changes the kit.
+
+- **Sign-in sprint.** Open GitHub, Claude, 1Password and Tailscale sign-in
+  pages in one Chrome window at the start, let the user work through them
+  while the installs run, and have the agent verify each afterwards.
+- **Tailscale pre-auth key.** The helper issues a short-lived pre-auth key;
+  onboarding runs `tailscale up --authkey` and the user never sees a Tailscale
+  sign-in. This replaces the "own tailnet plus share" setup in decision 22,
+  which is how the 2026-11-07 run ended up anyway.
+- **One GitHub login with every scope.** Ask for `repo`, `admin:public_key`,
+  `workflow` (and `delete_repo` in tests) in the first `gh auth login`, so
+  there is never a second device-code round.
+- **1Password service account for unattended work only.** Hooks and scheduled
+  jobs could use a service account scoped to the Agents vault. Interactive
+  agent work keeps the desktop integration: with the Balanced preset and
+  Windows Hello it costs one Authorize per program per day and no password
+  after the first time. Bypass permissions mode stays out (decision 10);
+  auto mode already ran the whole onboarding without permission prompts.
+- **Claude in Chrome does the form work** (device codes, account pickers,
+  Add buttons), as the spec intended; the extension just has to be installed
+  locally first, which step 3 now checks.
+
 ## Facts from research that shape the build
 
 - 1Password Individual is about $36 for the first year, then about $48 a year.
