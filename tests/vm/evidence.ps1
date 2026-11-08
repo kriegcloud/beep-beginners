@@ -40,7 +40,9 @@ $sshd = Get-Service sshd -ErrorAction SilentlyContinue
 $rule = Get-NetFirewallRule -Name 'beep-beginners-ssh-tailscale' -ErrorAction SilentlyContinue
 $ruleAddr = if ($rule) { ($rule | Get-NetFirewallAddressFilter).RemoteAddress } else { $null }
 $defaultRule = Get-NetFirewallRule -Name 'OpenSSH-Server-In-TCP' -ErrorAction SilentlyContinue
-$keyCount = if (Test-Path 'C:\ProgramData\ssh\administrators_authorized_keys') { @(Get-Content 'C:\ProgramData\ssh\administrators_authorized_keys' | Where-Object { $_ -match '^(ssh-|ecdsa-|sk-)' }).Count } else { 0 }
+# The desktop session runs with a filtered token, so this file is unreadable
+# here; run.sh adds the count from the harness SSH session instead.
+$keyCount = try { @(Get-Content 'C:\ProgramData\ssh\administrators_authorized_keys' -ErrorAction Stop | Where-Object { $_ -match '^(ssh-|ecdsa-|sk-)' }).Count } catch { 'unreadable-here' }
 $ts = Try-Json { (& "$env:ProgramFiles\Tailscale\tailscale.exe" status --json) -join "`n" | ConvertFrom-Json }
 
 $plugins = (& claude plugin list 2>$null) -join "`n"

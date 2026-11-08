@@ -188,6 +188,12 @@ Unregister-ScheduledTask -TaskName milkman-launch -Confirm:\$false"
       WAIT_SECONDS=1200 "$RUN" interactive 'powershell -NoProfile -ExecutionPolicy Bypass -File C:\Users\lawyer\beep-evidence.ps1'
       echo '```'
       echo
+      echo "Seen over the harness SSH session (an unfiltered admin token):"
+      echo
+      echo '```json'
+      "$RUN" ssh '[ordered]@{ helper_key_count = @(Get-Content C:\ProgramData\ssh\administrators_authorized_keys -ErrorAction SilentlyContinue | Where-Object { $_ -match "^(ssh-|ecdsa-|sk-)" }).Count; password_auth_off = [bool](Select-String -Path C:\ProgramData\ssh\sshd_config -Pattern "^PasswordAuthentication no" -Quiet) } | ConvertTo-Json'
+      echo '```'
+      echo
       echo "Screenshots: \`$(cat "$STATE/shots/milkman-current-dir")\` (kept out of the repo)."
     } >"$OUT"
     echo "wrote $OUT"
