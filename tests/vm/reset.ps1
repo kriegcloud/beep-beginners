@@ -17,10 +17,10 @@ foreach ($repo in @('workspace', 'PokeLedger')) {
     "deleted repo $login/$repo (exit $LASTEXITCODE)"
   }
 }
-$keys = (& gh ssh-key list 2>$null) -split "`n" | Where-Object { $_ -match '^GitHub ' }
-foreach ($line in $keys) {
-  $id = ($line -split "`t")[4]
-  if ($id) { & gh ssh-key delete $id --yes; "deleted SSH key $id" }
+# `gh ssh-key list` has no stable id column; ask the API for the ids.
+$ids = & gh api user/keys --jq '.[] | select(.title | startswith("GitHub ")) | .id' 2>$null
+foreach ($id in $ids) {
+  if ($id) { & gh ssh-key delete $id --yes; "deleted SSH key $id (exit $LASTEXITCODE)" }
 }
 $ts = "$env:ProgramFiles\Tailscale\tailscale.exe"
 if (Test-Path $ts) { & $ts logout; 'logged out of Tailscale (remove the device from the test tailnet admin page)' }
