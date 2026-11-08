@@ -192,6 +192,9 @@ app uses. Compare the two silently; never show the email in evidence.
    PATH), on macOS `open -a 1Password`. The user signs in.
 3. Turn on Settings > Developer > "Integrate with 1Password CLI". Tell the
    user exactly where the switch is and wait. It needs Windows Hello.
+   When 1Password shows "Pick your preferred way to unlock", tell the user
+   to choose **Balanced** and Update settings. Strict makes every `op` call
+   ask for Authorize and Windows Hello again (test VM, 2026-11-07).
 4. Check with `op vault list`, never `op whoami` alone: the vault listing is
    what makes 1Password show its "Access Requested" dialog, while `op whoami`
    on its own only says "account is not signed in". Say first that 1Password
