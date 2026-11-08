@@ -102,7 +102,7 @@ case "${1:-help}" in
     # Test-only: onboarding's help line closes port 22 to everything but
     # Tailscale, which would lock the harness out. With the passt backend the
     # host reaches the guest from its default gateway, so allow just that.
-    "$RUN" ssh '$gw = (Get-NetRoute -DestinationPrefix 0.0.0.0/0 | Select -First 1).NextHop; New-NetFirewallRule -Name milkman-harness-ssh -DisplayName "milkman test harness SSH" -Direction Inbound -Protocol TCP -LocalPort 22 -RemoteAddress $gw,10.0.2.2 -Action Allow -Profile Any | Out-Null'
+    "$RUN" ssh '$gw = (Get-NetRoute -DestinationPrefix 0.0.0.0/0 | Select -First 1).NextHop; if (-not (Get-NetFirewallRule -Name milkman-harness-ssh -ErrorAction SilentlyContinue)) { New-NetFirewallRule -Name milkman-harness-ssh -DisplayName "milkman test harness SSH" -Direction Inbound -Protocol TCP -LocalPort 22 -RemoteAddress $gw,10.0.2.2 -Action Allow -Profile Any | Out-Null }'
     # Ship the local kit, for runs before the marketplace is pushed.
     TAR="$(mktemp --suffix .tar)"
     git -C "$KIT" archive --format=tar --prefix=beep-beginners/ HEAD >"$TAR"
