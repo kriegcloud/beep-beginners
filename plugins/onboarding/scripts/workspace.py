@@ -102,6 +102,25 @@ proxy or its config to the user, and never read its config folder.
 """
 
 
+def install_project_plugins(target: Path) -> dict:
+    """Install every plugin the folder's settings enable, at project scope.
+
+    Enabling a plugin in `.claude/settings.json` is not enough on its own: the
+    first session in the folder logged `plugin-cache-miss` for each one and
+    loaded no skills (test VM, 2026-11-07). An explicit project-scope install
+    records them, and the next session loads them."""
+    settings = json.loads((target / ".claude" / "settings.json").read_text(encoding="utf-8"))
+    results: dict[str, str] = {}
+    for plugin, enabled in settings.get("enabledPlugins", {}).items():
+        if not enabled:
+            continue
+        out = subprocess.run(["claude", "plugin", "install", plugin, "--scope", "project"],
+                             cwd=target, capture_output=True, text=True, check=False,
+                             encoding="utf-8", errors="replace", shell=(os.name == "nt"))
+        results[plugin] = "installed" if out.returncode == 0 else (out.stderr or out.stdout).strip().splitlines()[-1:] and (out.stderr or out.stdout).strip().splitlines()[-1] or f"exit {out.returncode}"
+    return results
+
+
 def init_and_push(target: Path, repo_name: str, message: str, github: bool = True) -> str:
     run(["git", "init", "-q", "-b", "main"], cwd=target)
     run(["git", "add", "-A"], cwd=target)
@@ -158,6 +177,7 @@ def create(args: argparse.Namespace) -> dict:
     paths = resolve_paths(seed.get("paths", {}), facts)
     write_config(target, paths)
     result = {"workspace": str(target), "workspace_url": init_and_push(target, args.name, "Start my workspace", not args.no_github)}
+    result["plugins"] = install_project_plugins(target)
 
     for key, repo in seed.get("repos", {}).items():
         side = parent / repo["name"]
@@ -171,7 +191,8 @@ def create(args: argparse.Namespace) -> dict:
         merged["enabledPlugins"] = own.get("enabledPlugins", merged["enabledPlugins"])
         (side / ".claude" / "settings.json").write_text(json.dumps(merged, indent=2) + "\n", encoding="utf-8")
         write_config(side, paths)
-        result[key] = {"path": str(side), "url": init_and_push(side, repo["name"], "Set up the project folders", not args.no_github)}
+        result[key] = {"path": str(side), "url": init_and_push(side, repo["name"], "Set up the project folders", not args.no_github),
+                       "plugins": install_project_plugins(side)}
 
     state.setdefault("answers", {})["workspace"] = str(target)
     state["workspace"] = result

@@ -184,6 +184,12 @@ CLI). Until then agents use the CLI route from decision 13.
   even when no app is detected; the README names the `</>` Code button,
   because the desktop app opens on its chat tab, which has no shell.
 - Step 9 opens the app with `onepassword://`, not `1password://`.
+- `workspace.py create` installs every enabled plugin at project scope
+  (`claude plugin install <p> --scope project`). Enabling them in settings
+  alone left the first session with `plugin-cache-miss` and no kit skills;
+  after the installs a session loaded all 39 plugin skills.
+- Step 3 trusts `facts.claude_in_chrome`, not a Claude in Chrome tool answer:
+  on the VM the tool reached the host's Chrome through the shared account.
 
 ## Facts from research that shape the build
 
