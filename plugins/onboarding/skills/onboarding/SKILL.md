@@ -177,6 +177,11 @@ app uses. Compare the two silently; never show the email in evidence.
 
 1. If there's no account, open https://1password.com/sign-up/ (Individual).
    The user signs up and pays, but only after step 4's yes.
+   If the Microsoft Store edition of 1Password is installed (an app package
+   named `DC5C6510.2032887045529`), say in one sentence that it can't work
+   with the command-line tool, and that step 5 installed the 1password.com
+   edition next to it; the user signs in to that one. The Store edition can
+   be removed later.
 2. Open the 1Password app: on Windows `Start-Process onepassword://` (the
    scheme is `onepassword`, not `1password`; the Store build has no exe on
    PATH), on macOS `open -a 1Password`. The user signs in.

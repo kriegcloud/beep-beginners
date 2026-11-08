@@ -135,7 +135,10 @@ tools:
     macos: { brew: "cask:1password" }
     check:
       detect:
-        windows: "if (-not ((Get-AppxPackage | ? { $_.Name -eq 'DC5C6510.2032887045529' -or $_.Name -like '*1Password*' }) -or (Test-Path \"$env:LOCALAPPDATA\\1Password\\app\"))) { exit 1 }"
+        # Only the 1password.com edition counts. The Microsoft Store edition
+        # can't talk to the CLI (no named pipe; seen on the test VM, 2026-11-07),
+        # so a machine that has only that one still needs this install.
+        windows: "if (-not (Test-Path \"$env:LOCALAPPDATA\\1Password\\app\\8\\1Password.exe\")) { exit 1 }"
         macos: "test -d /Applications/1Password.app"
       verify: "op whoami"
       expect: "URL"
