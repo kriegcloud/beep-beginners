@@ -32,7 +32,8 @@
       "Bash(winget list:*)", "PowerShell(winget list:*)",
       "Bash(winget install:*)", "PowerShell(winget install:*)",
       "Bash(op run:*)", "PowerShell(op run:*)",
-      "Bash(op whoami:*)", "PowerShell(op whoami:*)"
+      "Bash(op whoami:*)", "PowerShell(op whoami:*)",
+      "Bash(op vault list:*)", "PowerShell(op vault list:*)"
     ],
     "deny": [
       "Bash(git push --force:*)", "PowerShell(git push --force:*)",
