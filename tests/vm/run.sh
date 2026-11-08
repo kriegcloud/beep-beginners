@@ -12,6 +12,7 @@
 #   run.sh click X Y                    click at screenshot coordinates (60% scale)
 #   run.sh type 'text' | --key KEY...   type into the VM (beep-effect vm-type.sh)
 #   run.sh evidence [out.md]            collect proof into evidence/ (no secret values)
+#   run.sh evidence-import [src] [out]  import evidence.ps1 output the operator collected in their own session
 #   run.sh reset                        delete the test repos, SSH key, Tailscale login
 #   run.sh finish [--save milkman-NAME] stop, optionally save a milkman-* snapshot, revert clean
 #
@@ -196,6 +197,37 @@ Unregister-ScheduledTask -TaskName milkman-launch -Confirm:\$false"
       echo
       echo "Screenshots: \`$(cat "$STATE/shots/milkman-current-dir")\` (kept out of the repo)."
     } >"$OUT"
+    echo "wrote $OUT"
+    ;;
+
+  evidence-import)
+    # When 1Password's access dialog needs the operator's own session, the
+    # operator runs evidence.ps1 in their PowerShell window and this imports
+    # the result: run.sh evidence-import [C:/path/evidence.json] [out.md]
+    own_lock
+    SRC="${2:-C:/Users/lawyer/beep-test/evidence.json}"
+    OUT="${3:-$HERE/evidence/$(date +%F-%H%M).md}"
+    mkdir -p "$(dirname "$OUT")"
+    TMP="$(mktemp --suffix .json)"
+    "$RUN" ssh "Get-Content '${SRC//\//\\}' -Raw" | tr -d '\r' >"$TMP"
+    {
+      echo "# Milkman proof evidence ($(date -u +%Y-%m-%dT%H:%MZ))"
+      echo
+      echo "Kit commit: \`$(git -C "$KIT" rev-parse --short HEAD)\`. Collected by evidence.ps1 in the operator's own desktop session (1Password trusts that session), imported from \`$SRC\`. Values are never recorded: sign-ins and keys appear as yes/no or counts."
+      echo
+      echo '\`\`\`json'
+      sed -n '/^{/,$p' "$TMP"
+      echo '\`\`\`'
+      echo
+      echo "Seen over the harness SSH session (an unfiltered admin token):"
+      echo
+      echo '\`\`\`json'
+      "$RUN" ssh '[ordered]@{ helper_key_count = @(Get-Content C:\ProgramData\ssh\administrators_authorized_keys -ErrorAction SilentlyContinue | Where-Object { $_ -match "^(ssh-|ecdsa-|sk-)" }).Count; password_auth_off = [bool](Select-String -Path C:\ProgramData\ssh\sshd_config -Pattern "^PasswordAuthentication no" -Quiet) } | ConvertTo-Json'
+      echo '\`\`\`'
+      echo
+      echo "Screenshots: \`$(cat "$STATE/shots/milkman-current-dir")\` (kept out of the repo)."
+    } >"$OUT"
+    rm -f "$TMP"
     echo "wrote $OUT"
     ;;
 
