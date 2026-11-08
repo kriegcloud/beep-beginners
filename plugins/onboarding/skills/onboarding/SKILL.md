@@ -177,7 +177,9 @@ app uses. Compare the two silently; never show the email in evidence.
 
 1. If there's no account, open https://1password.com/sign-up/ (Individual).
    The user signs up and pays, but only after step 4's yes.
-2. Open the 1Password app. The user signs in.
+2. Open the 1Password app: on Windows `Start-Process onepassword://` (the
+   scheme is `onepassword`, not `1password`; the Store build has no exe on
+   PATH), on macOS `open -a 1Password`. The user signs in.
 3. Turn on Settings > Developer > "Integrate with 1Password CLI". Tell the
    user exactly where the switch is and wait. It needs Windows Hello.
 4. Check with `op whoami` (it may show a Windows Hello prompt; say so
