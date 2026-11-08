@@ -57,6 +57,15 @@ if (Test-Path "$gitRoot\cmd\git.exe") {
 }
 $result.git = (& git --version) -join ' '
 
+# Default model for every session: Opus 5.5 at medium effort (operator ruling
+# 2026-11-07). Written before the first session so onboarding itself uses it.
+$settingsPath = Join-Path $env:USERPROFILE '.claude\settings.json'
+New-Item -ItemType Directory -Force (Split-Path $settingsPath) | Out-Null
+$settings = if (Test-Path $settingsPath) { Get-Content $settingsPath -Raw | ConvertFrom-Json } else { [pscustomobject]@{} }
+if (-not ($settings.PSObject.Properties.Name -contains 'model')) { $settings | Add-Member -NotePropertyName model -NotePropertyValue 'claude-opus-5-5' }
+if (-not ($settings.PSObject.Properties.Name -contains 'modelSettings')) { $settings | Add-Member -NotePropertyName modelSettings -NotePropertyValue ([pscustomobject]@{ 'claude-opus-5-5' = [pscustomobject]@{ effortLevel = 'medium' } }) }
+$settings | ConvertTo-Json -Depth 10 | Set-Content $settingsPath -Encoding UTF8
+
 # The kit
 & claude plugin marketplace add kriegcloud/beep-beginners 2>&1 | Out-Null
 & claude plugin install onboarding@beep-beginners --scope user 2>&1 | Out-Null

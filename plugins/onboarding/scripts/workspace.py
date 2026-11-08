@@ -33,6 +33,9 @@ SEEDS = PLUGIN / "seeds"
 sys.path.insert(0, str(HERE))
 from state import load_state, save_state  # noqa: E402
 
+MODEL = "claude-opus-5-5"
+EFFORT = "medium"
+
 GIT_ENV = {**os.environ, "GIT_TERMINAL_PROMPT": "0"}
 
 
@@ -243,8 +246,13 @@ def user_settings(_: argparse.Namespace) -> dict:
         current = json.loads(path.read_text(encoding="utf-8") or "{}")
         shutil.copy(path, path.with_suffix(".before-beep-beginners.json"))
     current.setdefault("permissions", {})["defaultMode"] = "auto"
+    # Opus 5.5 at medium effort for every session (operator ruling 2026-11-07):
+    # the desktop app otherwise defaults to the top model at high effort, which
+    # ran through most of a weekly limit in one onboarding.
+    current["model"] = MODEL
+    current.setdefault("modelSettings", {}).setdefault(MODEL, {})["effortLevel"] = EFFORT
     path.write_text(json.dumps(current, indent=2) + "\n", encoding="utf-8")
-    return {"settings": str(path), "defaultMode": "auto"}
+    return {"settings": str(path), "defaultMode": "auto", "model": MODEL, "effort": EFFORT}
 
 
 def git_identity(args: argparse.Namespace) -> dict:

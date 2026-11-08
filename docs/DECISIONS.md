@@ -191,6 +191,15 @@ CLI). Until then agents use the CLI route from decision 13.
 - Step 3 trusts `facts.claude_in_chrome`, not a Claude in Chrome tool answer:
   on the VM the tool reached the host's Chrome through the shared account.
 
+### D40. Sessions run Opus 5.5 at medium effort
+
+The desktop app's Code tab defaulted the test VM's sessions to the top model at
+high effort, and one onboarding used most of a weekly limit. Benjamin ruled on
+2026-11-07: every session in the kit runs `claude-opus-5-5` at `medium`.
+`bootstrap.ps1` writes `model` and `modelSettings` into the user settings
+before the first session, `workspace.py user-settings` keeps them, and the
+workspace and PokeLedger settings carry the same values.
+
 ### D39. Proposals to make onboarding faster for the user (2026-11-07, open)
 
 Raised by Benjamin while signing in on the test VM. Not built yet; each needs
