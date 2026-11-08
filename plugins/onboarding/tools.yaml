@@ -140,7 +140,10 @@ tools:
         # so a machine that has only that one still needs this install.
         windows: "if (-not (Test-Path \"$env:LOCALAPPDATA\\1Password\\app\\8\\1Password.exe\")) { exit 1 }"
         macos: "test -d /Applications/1Password.app"
-      verify: "op whoami"
+      # `op vault list` first: it is what makes the app show its Authorize
+      # prompt. `op whoami` on its own only reports "account is not signed in"
+      # (test VM, 2026-11-07).
+      verify: "op vault list > $null; op whoami"
       expect: "URL"
     signin: onepassword
 

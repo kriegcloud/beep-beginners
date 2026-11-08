@@ -187,8 +187,15 @@ app uses. Compare the two silently; never show the email in evidence.
    PATH), on macOS `open -a 1Password`. The user signs in.
 3. Turn on Settings > Developer > "Integrate with 1Password CLI". Tell the
    user exactly where the switch is and wait. It needs Windows Hello.
-4. Check with `op whoami` (it may show a Windows Hello prompt; say so
-   first). Then create the agents' vault, unless `op vault list` already
+4. Check with `op vault list`, never `op whoami` alone: the vault listing is
+   what makes 1Password show its "Access Requested" dialog, while `op whoami`
+   on its own only says "account is not signed in". Say first that 1Password
+   will ask to allow access and then ask for Windows Hello. The first time it
+   asks for the account password instead, and it gives up after about a
+   minute, so ask the user to stay by the screen. Windows Hello must be set
+   up (Settings > Accounts > Sign-in options > PIN) or the dialog never
+   appears; `detect.py` reports `windows_hello`. Each program that calls
+   `op` (PowerShell, cmd, uv) is approved once. Then create the agents' vault, unless `op vault list` already
    shows it: `op vault create <vault>`, where `<vault>` is
    `BEEP_BEGINNERS_AGENTS_VAULT` if set, otherwise `Agents`. Test runs set it
    to their test vault, so they never write to a real vault.

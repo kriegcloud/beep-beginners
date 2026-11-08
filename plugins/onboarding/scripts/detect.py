@@ -62,6 +62,10 @@ $inAdmins = [bool](Get-LocalGroupMember -Group Administrators -ErrorAction Silen
   bitwarden_extension = [bool](Get-ChildItem "$env:LOCALAPPDATA\Google\Chrome\User Data\*\Extensions\nngceckbapebfimnlniiiahkandclblb" -ErrorAction SilentlyContinue)
   bitwarden_desktop = [bool](Get-AppxPackage *Bitwarden* -ErrorAction SilentlyContinue) -or (Test-Path "$env:LOCALAPPDATA\Programs\Bitwarden")
   claude_in_chrome = [bool](Get-ChildItem "$env:LOCALAPPDATA\Google\Chrome\User Data\*\Extensions\fcoeoabgfenejglbffodgkkbkcdhcgfn" -ErrorAction SilentlyContinue)
+  # Windows Hello PIN enrolled for this user. 1Password's CLI integration can't
+  # show its approval dialog without it (test VM, 2026-11-07). The PIN
+  # credential provider records enrolment per user SID.
+  windows_hello = [bool]((Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Authentication\Credential Providers\{D6886603-9D2F-4EB2-B667-1971041FA96B}\$([System.Security.Principal.WindowsIdentity]::GetCurrent().User.Value)" -ErrorAction SilentlyContinue).LogonCredsAvailable)
 } | ConvertTo-Json -Compress
 """)
     facts = json.loads(raw) if raw else {"error": "PowerShell probe failed"}
