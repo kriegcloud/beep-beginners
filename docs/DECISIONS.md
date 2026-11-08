@@ -137,6 +137,54 @@ and with it Python, is one of the things it installs. The pasted sentence
 became shorter: it runs this script. The Visual C++ runtime moved into the
 one elevated batch.
 
+## 2026-11-07
+
+### D36. 1Password on Windows: the 1password.com edition, a Hello PIN, and `op vault list` [amends 13]
+
+The second VM run (2026-11-07) spent two hours on step 9. What was learned:
+
+- Only the 1password.com edition (winget `AgileBits.1Password`) counts as
+  installed. The Microsoft Store edition on the test VM looked present to
+  detection, so the install was skipped, and the CLI could not reach it.
+- 1Password's CLI integration on Windows needs Windows Hello. Without a PIN
+  the app never shows its "Access Requested" dialog. `detect.py` now reports
+  `windows_hello`, and the skill sends the user to Settings > Accounts >
+  Sign-in options first when it is false.
+- `op whoami` on its own never asks the app for access and only prints
+  "account is not signed in". A data command does: the check is
+  `op vault list`, and the first run asks for the account password (it gives
+  up after about a minute). Every program that calls `op` (PowerShell, cmd,
+  Claude) is approved once with Authorize plus Hello.
+- Enabling Hello switched the app's unlock preset to Strict, which re-prompts
+  on every `op` process. Onboarding tells the user to pick Balanced when the
+  "Pick your preferred way to unlock" sheet appears.
+- The errors the agent saw ("cannot connect to 1Password app", "account is
+  not signed in") were not a Claude Code sandbox: on native Windows Claude
+  Code runs commands unsandboxed (Claude Code docs, sandboxing page).
+
+### D37. 1Password MCP for Claude Desktop: proposed, not yet built
+
+The 1Password app now ships a local MCP server (Settings > Developer >
+"Integrate with MCP clients"). It would give the Claude desktop app's chat
+mode, which has no shell, the same reference-based access that Code mode gets
+from the CLI. Benjamin asked for it on 2026-11-07. Open before it is added:
+which vault it may see (the Agents vault only, like the CLI), whether it is
+set up during onboarding or on first need (as decision 20 does for
+OpenKnowledge's MCP), and how approvals work (Hello per session, like the
+CLI). Until then agents use the CLI route from decision 13.
+
+### D38. Run findings fixed in the kit (2026-11-07)
+
+- Installers run with hidden consoles; rustup uses `--profile minimal`
+  (rust-docs alone took about 17 minutes on the VM).
+- The elevated batch prints what it is installing instead of a blank window,
+  and installs Tailscale with `TS_NOLAUNCH=1` so its welcome window stays
+  shut. Windows cancels the UAC prompt by itself after about two minutes.
+- The seed question recommends Yes; the accounts question keeps Bitwarden
+  even when no app is detected; the README names the `</>` Code button,
+  because the desktop app opens on its chat tab, which has no shell.
+- Step 9 opens the app with `onepassword://`, not `1password://`.
+
 ## Facts from research that shape the build
 
 - 1Password Individual is about $36 for the first year, then about $48 a year.
