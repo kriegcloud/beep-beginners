@@ -87,8 +87,13 @@ and anything worth flagging (Documents synced by OneDrive, Bitwarden found).
 Every later browser step depends on this.
 
 1. If Chrome is missing, run `tools.py install-user --only chrome`.
-2. Test the connection: call a Claude in Chrome tool, such as listing tabs.
-   If it works, this step is done.
+2. Check `facts.claude_in_chrome` from step 2: it is true only when the
+   extension is installed in this computer's Chrome. If it is false, the
+   extension is missing here, even if a Claude in Chrome tool answers: the
+   tool can reach a Chrome on another computer signed in to the same Claude
+   account (seen on the test VM, 2026-11-07). Go to 3.
+   If it is true, call a Claude in Chrome tool, such as listing tabs. If it
+   works, this step is done.
 3. If it doesn't, open the Web Store page in Chrome, starting Chrome with
    `--no-first-run --no-default-browser-check` so its own welcome screens
    don't get in the way (seen on the test VM):
