@@ -33,6 +33,25 @@ tests/vm/run.sh finish [--save milkman-signed-in]
 - One run per release clicks through the folder picker by hand. The others
   set `BEEP_BEGINNERS_WORKSPACE`.
 
+## What `milkman-signed-in` holds (saved 2026-11-08)
+
+Claude desktop and CLI signed in to the operator's account; Chrome with the
+Claude extension installed and linked; GitHub CLI signed in as the test account
+(scopes include `delete_repo`); 1Password (1password.com edition) signed in
+with Windows Hello, the Balanced preset and the CLI integration on; a Windows
+Hello PIN for `lawyer` (value in `~/VMs/practice-gateway/state/lawyer-pin`);
+Tailscale signed in on the operator's tailnet; user settings with auto mode and
+Opus 5.5 at medium effort; every tools.yaml tool installed. No workspace, no
+onboarding state, no test repos. A run from it still exercises every onboarding
+step; the sign-in steps just find their sign-ins done.
+
+1Password's access dialogs are per program and per Windows logon session. The
+harness's scheduled tasks start a new logon session each time, so `op` calls
+from `run.sh vm`/`vmi` get the account-password dialog and time out. Collect
+1Password evidence from the operator's own PowerShell window with
+`C:\Users\lawyer\beep-test\ev.cmd` style launchers and import it with
+`run.sh evidence-import`.
+
 ## Baselines
 
 `baseline/` holds `winget list` inventories of the start snapshot. The
