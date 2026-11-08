@@ -299,7 +299,10 @@ tools:
     macos: { brew: powershell }
     check:
       detect: "pwsh --version"
-      verify: "pwsh -NoProfile -Command \"'pwsh-' + $PSVersionTable.PSVersion.Major\""
+      # No `$` variable here: tools.py runs checks through Windows PowerShell,
+      # which would expand `$PSVersionTable` itself and report "pwsh-5"
+      # (test VM, 2026-11-07).
+      verify: "pwsh -NoProfile -Command \"'pwsh-' + [System.Management.Automation.PSVersionInfo]::PSVersion.Major\""
       expect: "pwsh-7"
 
   - id: vscode
