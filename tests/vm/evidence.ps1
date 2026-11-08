@@ -63,7 +63,7 @@ $plugins = (& claude plugin list 2>$null) -join "`n"
     workspace_pushed = $wsPushed
   }
   onepassword = [ordered]@{
-    cli_signed_in = [bool](& op whoami 2>$null)
+    cli_signed_in = [bool](& op vault list 2>$null)   # op whoami needs an explicit op signin first
     agents_vault_present = [bool]((& op vault list 2>$null) -match [regex]::Escape($(if ($env:BEEP_BEGINNERS_AGENTS_VAULT) { $env:BEEP_BEGINNERS_AGENTS_VAULT } else { 'beep-beginners-test' })))
   }
   help_line = [ordered]@{
