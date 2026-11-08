@@ -225,6 +225,14 @@ a yes before it changes the kit.
   Add buttons), as the spec intended; the extension just has to be installed
   locally first, which step 3 now checks.
 
+### D41. The 2026-11-07 run is the accepted proof
+
+Benjamin accepted the 2026-11-07/08 VM run (`tests/vm/evidence/2026-11-08-0019.md`)
+as the proof for this release, with two manual steps beyond the four the spec
+lists: setting a Windows Hello PIN and choosing 1Password's Balanced preset.
+Both are now onboarding-guided user steps. A later release may re-prove with
+the pre-auth-key and sign-in-sprint ideas from D39.
+
 ## Facts from research that shape the build
 
 - 1Password Individual is about $36 for the first year, then about $48 a year.
