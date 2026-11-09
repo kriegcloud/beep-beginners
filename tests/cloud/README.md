@@ -1,0 +1,56 @@
+# Cloud proof
+
+The caretaker (D44 to D47) runs as Claude Code cloud scheduled tasks. This
+proof shows one doing its job against a test workspace, and settles which way
+the kit reaches the sandbox (D45). Nothing here touches a real user's
+accounts: the workspace repo belongs to the test GitHub account, and the
+tasks live on the operator's claude.ai account under the name
+`beep-beginners-proof-*`, created one at a time with the operator's yes, and
+deleted afterwards.
+
+## Before
+
+1. A test workspace repo exists (the VM proof makes it), with the kit's
+   `security.yml` and at least one `projects/` folder.
+2. The operator's claude.ai GitHub connection can reach that repo: the test
+   account adds `kriegcloud` as a collaborator (approved 2026-11-08), and the
+   Claude GitHub App is installed on the repo (the VM proof's github-app step).
+3. The v3 kit is reachable from GitHub on a branch (`v3`), since every route
+   below fetches it from there. `kit caretaker install --ref v3`.
+
+## Routes to try, in order (D45)
+
+| Route | How the kit gets in | What it costs |
+| --- | --- | --- |
+| `plugin` | routine `extra_marketplaces` + `enabled_plugins` | undocumented; may be ignored |
+| `fetch` | `kit caretaker fetch` over raw.githubusercontent.com (default allowlist) | a committed `MANIFEST`; single-repo task keeps the workspace's deny rules |
+| `repo` | the kit as the task's second repository | multi-repo task: no repo hooks or permission rules in the run |
+
+For each: create the sweep routine with that route (`kit caretaker install
+--route <route>`), `Run now`, read the run log (`RemoteTrigger get_run_log`),
+and record whether `kit caretaker sweep` ran. First route that works wins;
+the DECISIONS entry names it and quotes the evidence line.
+
+## The runs to record
+
+1. **Sweep merges a green PR.** From the VM (or any session on the test
+   repo), land a `projects/` change so a `goal/*` PR exists with green
+   checks. Run the sweep. Expect: `merged` lists it; the merge commit on
+   `main` is by the operator's GitHub identity; `NEEDS-YOU.md` unchanged or
+   updated with the weekly note on a Monday.
+2. **Sweep refuses a red PR.** Open a PR on a `goal/*` branch whose test
+   fails on purpose (a failing assertion). Run the sweep. Expect:
+   `needs_fix` lists it with `kit_made: true`; the run makes one fix attempt
+   or, if the fix isn't a lint/test fix, writes a NEEDS-YOU item. The PR is
+   not merged while red.
+3. **PR-opened trigger.** Open a new green PR. Expect a new run within the
+   hour whose log shows `kit caretaker pr <n>` and a merge.
+4. **Dependabot within a day.** The test project pins one dependency a
+   version behind with `interval: daily`; the operator clicks "Check for
+   updates" on the repo's Dependabot page. Expect the PR-opened run (or the
+   next sweep) to merge it.
+
+Record in `tests/cloud/evidence/<date>.md`: routine ids, run session ids,
+the PR numbers, the merge commit shas, and which route won. No tokens, no
+emails. The routines are deleted at claude.ai/code/routines when done (the
+API can't delete them).
