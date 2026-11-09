@@ -197,8 +197,11 @@ def kit_line(route: str, ref: str) -> str:
                    "`uv run --script \"${CLAUDE_PLUGIN_ROOT}/scripts/kit.py\" ...` from the kit plugin's root."),
         "fetch": ("First get the kit:\n\n```\n" + bootstrap_snippet(ref) + "\n```\n\nThen every `kit ...` command below means "
                   "`uv run --script $KIT ...`."),
-        "repo": ("The kit is cloned next to the workspace as `beep-beginners`; set "
-                 "`KIT=../beep-beginners/plugins/kit/scripts/kit.py` and every `kit ...` command below means `uv run --script $KIT ...`."),
+        "repo": ("This task has two repositories, cloned side by side under the session's starting folder: the workspace "
+                 "and `beep-beginners` (the kit, public). First `cd` into the workspace clone. The kit clone starts on its "
+                 f"default branch, so run `git -C ../beep-beginners fetch -q origin {ref} && git -C ../beep-beginners checkout -q {ref}` "
+                 "once, then set `KIT=../beep-beginners/plugins/kit/scripts/kit.py`; every `kit ...` command below means "
+                 "`uv run --script $KIT ...`. Never commit to or push the kit clone."),
         "actions": ("The kit is checked out at `./.kit-src/plugins/kit` by the workflow; every `kit ...` command below means "
                     "`uv run --script ./.kit-src/plugins/kit/scripts/kit.py ...`."),
     }[route]
