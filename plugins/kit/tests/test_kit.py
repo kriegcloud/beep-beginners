@@ -282,6 +282,8 @@ def test_install_bodies_shape():
     actions = caretaker.install_bodies("https://github.com/o/ws", "", "7 13 * * *", runner="actions")
     assert "anthropics/claude-code-action" in actions["sweep"] and "CLAUDE_CODE_OAUTH_TOKEN" in actions["sweep"]
     assert "pull_request:" in actions["pr_opened"]
+    assert bodies["webhook"] == {"hook_type": "app", "source": "github", "scope_id": "o/ws",
+                                 "events": ["pull_request.opened"], "routine_trigger_id": "<id of pr_opened once created>"}
 
 
 def test_local_time_to_utc_cron():
