@@ -33,7 +33,17 @@ def list_points(root: Path) -> dict:
         points.append({"tag": ref.removeprefix("refs/tags/"), "sha": sha})
     points.sort(key=lambda p: p["tag"])
     head = git(root, "rev-parse", "HEAD", timeout=10).stdout.strip()
-    return {"points": points, "main": head[:12], "main_is_at": [p["tag"] for p in points if p["sha"] == head]}
+    # "At" means the same content, not the same commit: an undo lands a new
+    # commit whose tree is the safe point's.
+    if points:
+        git(root, "fetch", "-q", "origin", *[f"+refs/tags/{p['tag']}:refs/tags/{p['tag']}" for p in points], timeout=120)
+    head_tree = git(root, "rev-parse", "HEAD^{tree}", timeout=10).stdout.strip()
+    at = []
+    for p in points:
+        tree = git(root, "rev-parse", "--verify", "--quiet", f"{p['tag']}^{{tree}}", timeout=10).stdout.strip()
+        if p["sha"] == head or (tree and tree == head_tree):
+            at.append(p["tag"])
+    return {"points": points, "main": head[:12], "main_is_at": at}
 
 
 def undo(root: Path, to: str, open_pr=None) -> dict:

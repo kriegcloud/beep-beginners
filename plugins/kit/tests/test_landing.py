@@ -322,6 +322,7 @@ def test_undo_restores_main_as_a_new_commit(repos):
     assert sh("git", "rev-parse", "HEAD^", cwd=ws) == bad  # history kept: the mistake is the parent
     assert sh("git", "rev-parse", "main", cwd=origin) == head  # pushed, fast-forward
     assert not (ws / "docs" / "note.md").exists()
+    assert undo.list_points(ws)["main_is_at"] == ["safe/2026-11-08"]  # same content, newer commit
     assert undo.undo(ws, "safe/2026-11-08")["reason"].startswith("main already matches")
 
 
