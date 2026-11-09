@@ -527,12 +527,14 @@ software list, the VM proof.
   same frontmatter. Validation runs as `kit docs validate` (Python, so it
   works on the user's Windows machine as a chore) and, in the kit's CI, also
   as the upstream skill's `validate.sh` (Apache-2.0, fetched at a pinned
-  commit, not vendored).
+  commit, not vendored; amended by D82: the whole skill is now vendored and
+  okflint joins the checks).
 - **Ownership (the build's answer to the open question).** `.packet.json`
   owns a packet's lifecycle (active, parked, dropped, graduated; stage; open
   questions). The README frontmatter owns only the trust fields and mirrors
   title, description and dates; `packets.py` rewrites it on every state
-  change. OKF `status` is the trust tier, never the lifecycle: a dropped
+  change. OKF `status` is the page's state, never the lifecycle (clarified
+  in D82: the trust tier the indexes show comes from `verified`): a dropped
   packet is `deprecated`, everything else `stable`, with `stale_after` 30
   days after the last update while active. The lifecycle is also mirrored as
   a `lifecycle` key for readers.
@@ -922,6 +924,119 @@ this repository public"), so the locks come in three layers.
   `caretaker-setup` run, a run rejected at the usage limit, the three
   disabled proof routines to delete, the VM lock and the test repository as
   they are until the operator says otherwise.
+
+### D82. The OKF skill ships in the kit, and okflint maintains docs/ [2026-11-09]
+
+- **Question.** D60 made `docs/` an OKF bundle and ran the upstream skill's
+  `validate.sh` in the kit's CI only. The agent in a friend's workspace never
+  loaded the skill itself, so it had no guidance on writing, enriching,
+  citing, cross-linking or importing pages, and the only in-workspace check
+  was the kit's forgiving stdlib parser. Should the workspace get the skill,
+  and which tools should agents use to keep `docs/` healthy?
+- **Answer.** Ship it, wrapped. `plugins/kit/skills/okf/` holds a kit skill
+  (`okf`) that sets the overrides: new pages through `kit docs new`, indexes
+  and logs only through the kit, trust fields only through `kit docs
+  verify`/`deprecate`, v0.2 over v0.1, no `kcmd`, the D71 never-list on
+  imports, and never asking the user to install anything. Beside it,
+  `upstream/` vendors fabricioctelles/skills `okf-open-knowledge-format` at
+  `ec4099f` unchanged (Apache-2.0, LICENSE included; `SKILL.md` renamed to
+  `UPSTREAM-SKILL.md` so the plugin loads one skill, not two), with
+  `UPSTREAM.json` pinning the commit and each file's SHA-256.
+- **Tools.** `kit docs validate` stays the fast offline check and gains
+  `E7`: an unquoted value holding `: ` or ` #`, which standard YAML rejects
+  or truncates while the kit's reader forgave it. New `kit docs lint` runs
+  okflint 0.5.1 (MIT, pure Python, so it works on Windows) pinned through
+  `uv tool run`, with its dependencies pinned (`beartype==0.23.1`,
+  `pyyaml==6.0.3`) and resolution fenced by `--exclude-newer` to the day it
+  was checked (uv has no hash-checking mode for tool runs), against `plugins/kit/okf-base.yaml` rendered with the
+  bundle's absolute path (okflint resolves roots relative to its manifest).
+  The manifest has no profile, because concept types stay open; v0.2 field
+  shapes are errors; links, split candidates and v0.1 forms are warnings for
+  the agent; staleness stays with `kit docs stale`. Without uv or the network
+  lint returns `skipped`, never a failure. The weekly `okf-validate` chore
+  runs both and still says one line only when a page needs fixing.
+- **Found on the way.** okflint's first run rejected the template's own
+  `docs/agents/issue-tracker.md` (`title: Issue tracker: local markdown ...`).
+  Every v3.x workspace carries that page. The template is fixed, and the
+  `0003-v3.2-okf-quoting` migration quotes each E7 value in place, changing
+  nothing else (comments, spacing, line endings, body), and never rewrites a
+  page that isn't UTF-8. The kit's own writer now single-quotes values with
+  backslashes and its reader undoes `''`, `\\` and `\"`, so the kit and
+  standard YAML read every value the same.
+- **CI.** Runs the vendored `validate.sh` (no download), `kit docs lint` on
+  the template and on the smoke workspace, re-hashes the vendored files
+  against the pinned upstream commit, and posts a notice, not a failure, when
+  upstream `main` has moved past the pin. Re-vendoring is a deliberate change
+  with its own test run.
+- **Rejected.** Fetching the skill at session start (D76: the cloud refuses
+  downloaded code). Enabling it as a plugin (upstream publishes none for OKF,
+  and an external `github` marketplace source needs a per-user install).
+  Loading upstream's `SKILL.md` unwrapped (it tells the agent to ask the user
+  to `pip install okflint` and offers Knowledge Catalog sync). Google's
+  `reference-agent` in GoogleCloudPlatform/open-knowledge-format (an ADK and
+  BigQuery producer, not a maintenance tool). A per-type okflint profile
+  (would reject legitimate open types such as an imported `recipe`).
+
+### D83. The review before landing is named in full [2026-11-09]
+
+- **Finding.** Claude Code ships a built-in `code-review` skill (a bug hunt
+  at an effort level). A bare Claude Code 2.1.319 lists it with no plugins
+  installed, and with a plugin named `mattpocock-skills` beside it the
+  session lists both `mattpocock-skills:code-review` and `code-review`.
+  Plugin skills are namespaced, so the kit's bare `code-review` (project
+  skill, template and project `AGENTS.md`, both caretaker prompts) reached
+  the built-in on the desktop too, never Matt Pocock's two-axis review
+  (standards, and the spec in the goal packet) that D59 and D70 meant. In
+  the cloud no marketplace plugin loads at all (D45; the 2026-11-09 proof
+  saw an empty `installed_plugins.json`), so Matt's review isn't there.
+- **Answer.** Desktop text names `mattpocock-skills:code-review`, with
+  `main` as the fixed point and the packet's `specs/` as the spec. The cloud
+  caretaker names the built-in on purpose: `/code-review medium` on its
+  uncommitted change. Its one fix attempt is a lint or test repair with no
+  spec to check, and the built-in is the review that exists there. A test
+  fails on any bare `code-review` in kit text; migration
+  `0004-v3.2-goal-and-review` swaps the old lines in existing workspaces
+  where they are unchanged.
+- **Rejected.** Cloning mattpocock/skills as a third repository for cloud
+  runs (another moving part for a review that has no spec to read).
+  Prefixing every Matt skill (`tdd`, `retro`, `wayfinder` and the rest have
+  no built-in twin; the test guards the one that does).
+
+### D84. `make-goal` makes the packet; Claude Code's `/goal` runs it [2026-11-09]
+
+- **Question.** The kit had a `goal` skill that both made and worked goals,
+  beside Claude Code's built-in `/goal` command. Benjamin: the packet is the
+  point; making one is a skill like `/make-goal`, and running one is the
+  built-in, as `/goal follow the instructions in ./goals/<goal-name>/GOAL.md`.
+- **What `/goal` is** (code.claude.com/docs/en/goal): a session-scoped
+  completion condition, up to 4,000 characters, checked after every turn by
+  a small model through a prompt-based Stop hook; Claude keeps taking turns
+  until the checker says it holds. The checker calls no tools, so it judges
+  only what Claude has said. `/goal` alone shows status, `/goal clear` stops
+  it. It doesn't change the permission mode; auto mode makes it unattended.
+  Documented for the CLI, `claude -p` and the Desktop app. A project or
+  personal skill with a built-in's name replaces it; a plugin skill doesn't.
+- **Answer.** The `goal` skill becomes `make-goal`: graduate from an
+  exploration, write "Done means" lines a stranger could check from what
+  Claude says, write `STEPS.md`, save, and hand the user the `/goal` line.
+  It never works the steps. `kit goal graduate` now also writes `GOAL.md`
+  from `templates/goal/GOAL.md`: the start, the per-step loop (with the
+  D83 review), the stop-and-hand-back rules, the finish (retro, `kit goal set
+  --status done`), and one required status line ending every turn (`Goal
+  done:`, `Waiting for you:`, `Your turn:`, `Stuck:`, `Pausing:`, `Next:`),
+  so the checker can see both progress and a legitimate stop. A soft cap
+  (land and pause after about twenty turns) stands in for the turn limit
+  `/goal` doesn't have. The user's personal skills may not take a built-in's
+  name (`goal`, `code-review` and others in `profile.RESERVED_SKILL_NAMES`).
+  Migration 0004 adds `GOAL.md` to existing goal packets and updates the
+  `AGENTS.md` line that named the old skill.
+- **Not verified yet.** `/goal` on Windows and in the Desktop Code tab on the
+  VM, and whether the checker accepts `Waiting for you:` as "followed" or
+  keeps prompting; the next VM proof runs one goal end to end. Cloud runs
+  never start goals.
+- **Rejected.** Keeping a kit skill that works goals (two ways to run one).
+  Putting the whole instruction set in the `/goal` argument (the user would
+  carry 4,000 characters; the file can change with the goal).
 
 ## Facts from research that shape the build
 

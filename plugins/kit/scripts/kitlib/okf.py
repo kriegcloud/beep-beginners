@@ -15,10 +15,13 @@ file; `packets.py` rewrites it on every state change.
 from __future__ import annotations
 
 import datetime as dt
+import json
 import re
+import shutil
+import tempfile
 from pathlib import Path
 
-from .common import KitError, now_iso, slugify
+from .common import KIT_ROOT, KitError, now_iso, run, slugify
 
 RESERVED = {"index.md", "log.md"}
 STATUSES = ("draft", "stable", "deprecated")
@@ -42,8 +45,10 @@ def _scalar(text: str):
     text = text.strip()
     if text == "" or text in ("null", "~"):
         return None
-    if (text.startswith('"') and text.endswith('"')) or (text.startswith("'") and text.endswith("'")):
-        return text[1:-1].replace('\\"', '"')
+    if len(text) >= 2 and text.startswith("'") and text.endswith("'"):
+        return text[1:-1].replace("''", "'")
+    if len(text) >= 2 and text.startswith('"') and text.endswith('"'):
+        return re.sub(r'\\(["\\])', r"\1", text[1:-1])
     if text in ("true", "false"):
         return text == "true"
     if re.fullmatch(r"-?\d+", text):
@@ -163,7 +168,9 @@ def _dump_scalar(value) -> str:
         return str(value)
     text = str(value)
     if text == "" or re.search(r"[:#\[\]{},\"'\n]|^\s|\s$|^[-?&*!|>%@`]", text) or text in ("true", "false", "null", "~") or re.fullmatch(r"-?\d+(\.\d+)?", text):
-        return '"' + text.replace('"', '\\"') + '"'
+        if "\\" in text and "'" not in text:
+            return "'" + text + "'"  # YAML reads backslashes literally only in single quotes
+        return '"' + text.replace("\\", "\\\\").replace('"', '\\"') + '"'
     return text
 
 
@@ -202,7 +209,7 @@ def dump_yaml(data: dict, indent: int = 0) -> str:
 def split_frontmatter(text: str) -> tuple[dict | None, str]:
     if not text.startswith("---\n") and not text.startswith("---\r\n"):
         return None, text
-    end = re.search(r"\n---[ \t]*(\n|$)", text[3:])
+    end = re.search(r"\n---[ \t]*\r?(\n|$)", text[3:])
     if not end:
         return None, text
     raw = text[4:3 + end.start() + 1]
@@ -475,7 +482,13 @@ def write_indexes(root: Path) -> dict:
 def validate(bundle: Path) -> dict:
     errors: list[str] = []
     warnings: list[str] = []
+    error_files: set[str] = set()
     concepts = 0
+
+    def fail(rel: str, message: str) -> None:
+        errors.append(f"{message.split(' ', 1)[0]} {rel}: {message.split(' ', 1)[1]}")
+        error_files.add(rel)
+
     for path in sorted(bundle.rglob("*.md")):
         if ".git" in path.parts:
             continue
@@ -484,7 +497,7 @@ def validate(bundle: Path) -> dict:
         if path.name == "index.md":
             meta, _ = split_frontmatter(text)
             if meta is not None and (rel != "index.md" or set(meta) != {"okf_version"}):
-                errors.append(f"E3 {rel}: index.md may carry only okf_version at the bundle root")
+                fail(rel, "E3 index.md may carry only okf_version at the bundle root")
             continue
         if path.name == "log.md":
             if text.strip() and not re.search(r"^## \d{4}-\d{2}-\d{2}", text, re.M):
@@ -494,19 +507,133 @@ def validate(bundle: Path) -> dict:
         try:
             meta, _ = split_frontmatter(text)
         except KitError as exc:
-            errors.append(f"E1 {rel}: frontmatter does not parse ({exc})")
+            fail(rel, f"E1 frontmatter does not parse ({exc})")
             continue
         if meta is None:
-            errors.append(f"E1 {rel}: no YAML frontmatter")
+            fail(rel, "E1 no YAML frontmatter")
             continue
+        for problem in strict_yaml_problems(text):
+            fail(rel, f"E7 {problem}")
         if not str(meta.get("type") or "").strip():
-            errors.append(f"E2 {rel}: missing or empty type")
+            fail(rel, "E2 missing or empty type")
             continue
         if meta.get("status") not in (None, *STATUSES):
-            errors.append(f"E5 {rel}: status must be draft, stable or deprecated")
+            fail(rel, "E5 status must be draft, stable or deprecated")
         if not meta.get("description"):
             warnings.append(f"W1 {rel}: no description")
         gen = meta.get("generated")
         if gen is not None and (not isinstance(gen, dict) or not gen.get("by")):
-            errors.append(f"E6 {rel}: generated needs a by")
-    return {"bundle": str(bundle), "ok": not errors, "concepts": concepts, "errors": errors, "warnings": warnings}
+            fail(rel, "E6 generated needs a by")
+    return {"bundle": str(bundle), "ok": not errors, "concepts": concepts, "errors": errors,
+            "files": sorted(error_files), "warnings": warnings}
+
+
+# A plain (unquoted) value that a standard YAML reader would reject or cut
+# short: `title: Fees: 10%` (a mapping inside a value) or `title: a #b` (a
+# comment). The kit's reader forgives both; okflint, Obsidian and every other
+# tool don't. This is a heuristic for what the kit and most agents write, not
+# a YAML parser: it only looks at `key: value` lines (optionally a `- ` list
+# item) whose key is letters, digits, `_`, `.` or `-`, and it skips values
+# that start with a quote, a flow collection or a block indicator. It can
+# miss a problem (other key characters, a plain scalar in a block list); it
+# never flags valid YAML. `kit docs lint` (okflint, a real YAML parser) is the
+# complete check.
+_PLAIN_VALUE = re.compile(r"^(?P<lead>\s*(?:- )?[A-Za-z0-9_.-]+:[ \t]+)(?![\"'\[{|>&*!])(?P<value>.+?)(?P<trail>\s*)$")
+
+
+def _frontmatter_span(text: str) -> tuple[int, int] | None:
+    """Start and end offsets of the frontmatter lines, between the fences."""
+    if not text.startswith(("---\n", "---\r\n")):
+        return None
+    end = re.search(r"\n---[ \t]*\r?(\n|$)", text[3:])
+    if not end:
+        return None
+    start = 5 if text.startswith("---\r\n") else 4
+    return start, 3 + end.start() + 1
+
+
+def _needs_quotes(value: str) -> bool:
+    return ": " in value or value.endswith(":") or " #" in value
+
+
+def strict_yaml_problems(text: str) -> list[str]:
+    span = _frontmatter_span(text)
+    if span is None:
+        return []
+    problems = []
+    for n, line in enumerate(text[span[0]:span[1]].splitlines(), start=2):
+        m = _PLAIN_VALUE.match(line)
+        if m and _needs_quotes(m.group("value")):
+            problems.append(f"line {n} needs quotes around its value ({line.strip()[:60]!r})")
+    return problems
+
+
+def quote_problem_values(text: str) -> str:
+    """Quote, in place, each value `strict_yaml_problems` flags, and change
+    nothing else: comments, key order, spacing and the body stay as they were.
+    Single quotes when the value has no apostrophe (YAML and the kit then read
+    backslashes literally); otherwise double quotes, escaping backslashes and
+    double quotes, which both readers undo the same way."""
+    span = _frontmatter_span(text)
+    if span is None:
+        return text
+    lines = text[span[0]:span[1]].splitlines(keepends=True)
+    for i, line in enumerate(lines):
+        body = line.rstrip("\r\n")
+        m = _PLAIN_VALUE.match(body)
+        if not m or not _needs_quotes(m.group("value")):
+            continue
+        value = m.group("value")
+        if "'" not in value:
+            quoted = f"'{value}'"
+        else:
+            quoted = '"' + value.replace("\\", "\\\\").replace('"', '\\"') + '"'
+        lines[i] = m.group("lead") + quoted + m.group("trail") + line[len(body):]
+    return text[:span[0]] + "".join(lines) + text[span[1]:]
+
+
+# ---------------------------------------------------------------- okflint (D82)
+
+# Pinned, with its dependencies pinned too and resolution fenced to the date
+# they were checked, so a later upload can't change what runs. PyPI versions
+# are immutable; `uv tool run` has no hash-checking mode. Bump all three on
+# purpose, with the CI run as the check.
+OKFLINT = "okflint==0.5.1"
+OKFLINT_WITH = ("beartype==0.23.1", "pyyaml==6.0.3")
+OKFLINT_EXCLUDE_NEWER = "2026-11-09T00:00:00Z"
+MANIFEST = KIT_ROOT / "okf-base.yaml"
+
+
+def lint(bundle: Path, timeout: float = 180) -> dict:
+    """Run the pinned okflint over a bundle with the kit's manifest. Never
+    installs anything globally: `uv tool run` caches the pinned version. When
+    uv, Python 3.12 or the network is missing the result is `skipped`, not a
+    failure, because `validate` still ran and the user must never be asked to
+    install a linter."""
+    bundle = bundle.resolve()
+    if not bundle.is_dir():
+        raise KitError(f"no docs folder at {bundle}")
+    empty = {"bundle": str(bundle), "ok": None, "errors": [], "files": [], "warnings": []}
+    if shutil.which("uv") is None:
+        return {**empty, "skipped": "uv is not installed"}
+    with_args = [arg for dep in OKFLINT_WITH for arg in ("--with", dep)]
+    with tempfile.TemporaryDirectory(prefix="kit-okflint-") as tmp:
+        manifest = Path(tmp) / "okf-base.yaml"
+        root = bundle.as_posix().replace("'", "''")
+        manifest.write_text(MANIFEST.read_text(encoding="utf-8").replace("{root}", root), encoding="utf-8")
+        out = run(["uv", "tool", "run", "--quiet", "--exclude-newer", OKFLINT_EXCLUDE_NEWER, "--from", OKFLINT,
+                   *with_args, "okflint", "validate", "--json", "--manifest", str(manifest)],
+                  cwd=Path(tmp), timeout=timeout)
+    try:
+        diagnostics = json.loads(out.stdout or "null")
+    except json.JSONDecodeError:
+        diagnostics = None
+    if not isinstance(diagnostics, list):
+        reason = (out.stderr or out.stdout or "").strip().splitlines()[-1:] or [f"exit {out.returncode}"]
+        return {**empty, "skipped": f"okflint did not run: {reason[0][:200]}"}
+    failing = [d for d in diagnostics if d.get("severity") == "error"]
+    errors = [f"{d.get('code')} {d.get('file')}: {d.get('message')}" for d in failing]
+    warnings = [f"{d.get('code')} {d.get('file')}: {d.get('message')}" for d in diagnostics if d.get("severity") != "error"]
+    files = sorted({str(d.get("file")) for d in failing if d.get("file")})
+    return {"bundle": str(bundle), "ok": not errors, "linter": OKFLINT, "errors": errors, "files": files,
+            "warnings": warnings}

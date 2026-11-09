@@ -35,6 +35,13 @@ _SECTION = re.compile(r"^##\s*\d*\.?\s*(?P<name>.+?)\s*$")
 _SLOT = re.compile(r"<!-- slot:(?P<name>[a-z-]+) -->\n.*?<!-- /slot:(?P=name) -->", re.S)
 
 
+# D84: a project skill replaces a built-in command of the same name, so the
+# user's personal skills may not take these. `/goal` runs goal packets.
+RESERVED_SKILL_NAMES = frozenset({
+    "goal", "code-review", "simplify", "debug", "verify", "run", "loop", "batch", "init", "clear",
+    "compact", "config", "model", "help", "usage", "doctor", "recap", "review", "security-review",
+})
+
 def parse_memories(text: str) -> dict:
     """Claude's memory export: `## N. Section` headings, `[date] - text` lines.
     Anything else is kept as free text under 'notes'."""
@@ -107,6 +114,8 @@ def _validate(answers: dict) -> None:
             raise KitError("every skill needs a name, a description and a body")
         if slugify(skill["name"]) != skill["name"]:
             raise KitError(f"skill name {skill['name']!r} must be lowercase words joined by hyphens")
+        if skill["name"] in RESERVED_SKILL_NAMES:
+            raise KitError(f"skill name {skill['name']!r} would replace Claude Code's built-in /{skill['name']}; pick another")
 
 
 def write(root: Path, answers: dict) -> dict:

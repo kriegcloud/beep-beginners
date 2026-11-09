@@ -1,6 +1,6 @@
 # /// script
 # requires-python = ">=3.11"
-# dependencies = ["pytest>=8"]
+# dependencies = ["pytest>=8", "pyyaml>=6"]
 # ///
 """docs/ as an OKF bundle, trust and staleness, retros, feedback, migrations
 (D60 to D65, D72, D73). Run: uv run --script plugins/kit/tests/test_okf.py"""
@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import datetime as dt
+import importlib.util
 import json
 import os
 import shutil
@@ -167,7 +168,7 @@ def test_migrate_runs_once(ws):
     data["permissions"]["deny"] = [r for r in data["permissions"]["deny"] if "tag -d" not in r and "DELETE" not in r]
     settings.write_text(json.dumps(data))
     first = migrate.run(ws)
-    assert [r["migration"] for r in first["ran"]] == ["0001-v3-baseline", "0002-v3.1-locks"]
+    assert [r["migration"] for r in first["ran"]] == ["0001-v3-baseline", "0002-v3.1-locks", "0003-v3.2-okf-quoting", "0004-v3.2-goal-and-review"]
     assert all(r["applied"] for r in first["ran"])
     assert not (ws / "CHANGELOG-FOR-ED.md").exists() and glossary.read_text().startswith("---")
     # D80: the v3.1 migration adds the missing deny rules and the two glossary terms
@@ -175,10 +176,157 @@ def test_migrate_runs_once(ws):
     assert "Bash(git tag -d:*)" in deny and "PowerShell(gh api -X DELETE:*)" in deny
     assert "**Safe point**" in glossary.read_text() and "**Lock**" in glossary.read_text()
     second = migrate.run(ws)
-    assert second["ran"] == [] and second["applied_total"] == 2
+    assert second["ran"] == [] and second["applied_total"] == 4
     state = json.loads((ws / ".kit" / "migrations.json").read_text())
     assert "0001-v3-baseline" in state["applied"] and "0002-v3.1-locks" in state["applied"]
 
+
+# ---------------------------------------------------------------- strict YAML, okflint, the vendored skill (D82)
+
+OLD_TRACKER_TITLE = "title: Issue tracker: local markdown inside goal packets\n"
+
+
+def test_validate_flags_values_standard_yaml_rejects(ws):
+    page = ws / "docs" / "fees.md"
+    page.write_text("---\ntype: business-fact\ntitle: Fees: 10%\ndescription: \"ok: quoted\"\n"
+                    "note: cut #short\nverified: {by: human:ed, at: \"2026-01-01T00:00:00Z\"}\n---\nbody\n")
+    errors = okf.validate(ws / "docs")["errors"]
+    assert [e.split(" ")[0] for e in errors] == ["E7", "E7"]
+    assert "line 3" in errors[0] and "line 5" in errors[1]
+    # what the kit writes itself is always quoted where it must be
+    okf.concept_new(ws, "", "Shipping: the slow way", "how-to", "steps")
+    page.unlink()
+    assert okf.validate(ws / "docs")["ok"]
+
+
+def test_migration_quotes_flagged_pages(ws):
+    tracker = ws / "docs" / "agents" / "issue-tracker.md"
+    text = tracker.read_text()
+    tracker.write_text(text.replace('title: "Issue tracker: local markdown inside goal packets"\n', OLD_TRACKER_TITLE))
+    assert not okf.validate(ws / "docs")["ok"]
+    body_before = okf.split_frontmatter(tracker.read_text())[1]
+    spec = importlib.util.spec_from_file_location("m3", KIT / "migrations" / "0003-v3.2-okf-quoting.py")
+    m3 = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(m3)
+    assert "docs/agents/issue-tracker.md" in m3.apply(ws)
+    assert okf.validate(ws / "docs")["ok"] and okf.split_frontmatter(tracker.read_text())[1] == body_before
+    assert m3.apply(ws) == "nothing to quote"
+
+
+def test_lint_is_skipped_not_failed_without_uv(ws, monkeypatch):
+    monkeypatch.setattr(okf.shutil, "which", lambda name: None)
+    result = okf.lint(ws / "docs")
+    assert result["ok"] is None and "uv" in result["skipped"]
+
+
+needs_uv = pytest.mark.skipif(shutil.which("uv") is None or os.environ.get("KIT_OFFLINE") == "1",
+                              reason="okflint runs through uv and needs the network once")
+
+
+@needs_uv
+def test_lint_template_and_a_kit_written_page(ws):
+    okf.concept_new(ws, "", "Mercari fee: ten percent", "business-fact", "Mercari takes 10%.[^s1]\n\n[^s1]: Fee page",
+                    sources=[{"id": "s1", "resource": "https://example.com/fees"}], by="claude-code/claude-opus-5-5")
+    result = okf.lint(ws / "docs")
+    assert result["ok"] is True, result
+    assert result["linter"] == okf.OKFLINT and result["warnings"] == []
+
+
+@needs_uv
+def test_lint_catches_what_the_fast_check_forgives(ws):
+    (ws / "docs" / "bad.md").write_text("---\ntype: how-to\ntitle: Bad: one\ndescription: x\n---\nbody\n")
+    (ws / "docs" / "shape.md").write_text("---\ntype: how-to\ndescription: x\ngenerated:\n  by: process:kit\n"
+                                          "  at: \"2026-11-08\"\n---\nbody\n")
+    linted = okf.lint(ws / "docs")
+    codes = sorted(e.split(" ")[0] for e in linted["errors"])
+    assert codes == ["F001", "S205"], linted
+    # the chore reports one line naming both pages, never the codes
+    from kitlib import chores
+    out = chores.HANDLERS["okf-validate"](ws)
+    assert out["ok"] is False and out["line"].startswith("2 pages in docs need fixing")
+
+
+def test_vendored_okf_skill_matches_its_pin():
+    import hashlib
+    skill = KIT / "skills" / "okf"
+    pin = json.loads((skill / "UPSTREAM.json").read_text())
+    assert pin["license"] == "Apache-2.0" and len(pin["commit"]) == 40
+    on_disk = {p.relative_to(skill / "upstream").as_posix() for p in (skill / "upstream").rglob("*") if p.is_file()}
+    assert on_disk == set(pin["files"])
+    for rel, entry in pin["files"].items():
+        assert hashlib.sha256((skill / "upstream" / rel).read_bytes()).hexdigest() == entry["sha256"], rel
+    # only the kit's wrapper is a skill; the upstream copy must not load as a second one
+    assert [p.relative_to(skill).as_posix() for p in skill.rglob("SKILL.md")] == ["SKILL.md"]
+    assert "okflint==" in okf.OKFLINT and (KIT / "okf-base.yaml").exists()
+
+
+
+def test_migration_adds_goal_md_and_swaps_old_lines(ws):
+    packets.explore_new(ws, "An app", None)
+    g = packets.goal_graduate(ws, "an-app", "Ship it", None)
+    (ws / "goals" / g["slug"] / "GOAL.md").unlink()  # a goal made before v3.2
+    agents = ws / "AGENTS.md"
+    new_text = agents.read_text()
+    m4_spec = importlib.util.spec_from_file_location("m4", KIT / "migrations" / "0004-v3.2-goal-and-review.py")
+    m4 = importlib.util.module_from_spec(m4_spec)
+    m4_spec.loader.exec_module(m4)
+    old_text = new_text
+    for old, new in m4.ROOT_SWAPS:
+        assert new in old_text
+        old_text = old_text.replace(new, old)
+    agents.write_text(old_text)
+    project = ws / "projects" / "app" / "AGENTS.md"
+    project.parent.mkdir(parents=True)
+    project.write_text("# App\n\n" + m4.PROJECT_SWAPS[0][0] + "\n")
+    note = m4.apply(ws)
+    assert g["slug"] in note and "AGENTS.md" in note and "projects/app/AGENTS.md" in note
+    assert agents.read_text() == new_text
+    assert "mattpocock-skills:code-review" in project.read_text()
+    goal_md = (ws / "goals" / g["slug"] / "GOAL.md").read_text()
+    assert f"./goals/{g['slug']}/GOAL.md" in goal_md and "Ship it" in goal_md and "{{" not in goal_md
+    assert m4.apply(ws) == "nothing to change"
+
+
+def _load_m3():
+    spec = importlib.util.spec_from_file_location("m3", KIT / "migrations" / "0003-v3.2-okf-quoting.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def test_kit_writer_and_standard_yaml_agree():
+    import yaml
+    for value in ["C:\\Users\\sam", "it's", 'say "hi": C:\\a', "it's C:\\b: x", "Fees: 10%", "a #b", "plain"]:
+        text = okf.dump_yaml({"title": value})
+        assert okf.parse_yaml(text)["title"] == value, text
+        assert yaml.safe_load(text)["title"] == value, text
+
+
+def test_quoting_in_place_keeps_everything_else():
+    import yaml
+    text = ("---\r\n# a comment the kit's writer would drop\r\ntype: how-to\r\ntitle: Fees: 10%\r\n"
+            "note: it's C:\\b: x\r\n---\r\n\r\n\r\nbody with: colons\r\n")
+    new = okf.quote_problem_values(text)
+    assert new.count("\r\n") == text.count("\r\n") and "# a comment" in new
+    assert new.endswith("---\r\n\r\n\r\nbody with: colons\r\n")
+    meta = yaml.safe_load(new.split("---")[1])
+    assert meta["title"] == "Fees: 10%" and meta["note"] == "it's C:\\b: x"
+    assert okf.split_frontmatter(new)[0]["note"] == meta["note"] and okf.strict_yaml_problems(new) == []
+    assert okf.quote_problem_values(new) == new
+
+
+def test_migration_never_rewrites_a_page_that_isnt_utf8(ws):
+    page = ws / "docs" / "latin.md"
+    raw = b"---\ntype: how-to\ntitle: Caf\xe9: menu\n---\nbody\n"
+    page.write_bytes(raw)
+    note = _load_m3().apply(ws)
+    assert "docs/latin.md" in note and "aren't UTF-8" in note and page.read_bytes() == raw
+
+
+def test_validate_and_lint_name_failing_files(ws):
+    (ws / "docs" / "bad page.md").write_text("---\ntype: how-to\ntitle: Bad: one\n---\nx\n")
+    result = okf.validate(ws / "docs")
+    assert result["files"] == ["bad page.md"]
 
 if __name__ == "__main__":
     sys.exit(pytest.main([__file__, "-q"]))

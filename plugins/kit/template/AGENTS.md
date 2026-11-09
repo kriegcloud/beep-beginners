@@ -63,7 +63,9 @@ operator mode.
 
 - `explorations/` holds ideas being thought through. "I want to explore X"
   starts one (the `explore` skill). See `explorations/INDEX.md`.
-- `goals/` holds work that graduated from an exploration (`goal` skill).
+- `goals/` holds work that graduated from an exploration. The `make-goal`
+  skill makes the packet; `/goal follow the instructions in ./goals/<slug>/GOAL.md`
+  works it.
 - `projects/` holds apps and automations, one folder each, made with the
   `project` skill. Each has its own `AGENTS.md`, stack and tests.
 - `docs/` holds notes and how-tos worth keeping.
@@ -75,6 +77,7 @@ operator mode.
   a session, use the `remember` skill for anything durable you learned (a
   preference, a business fact, a correction). Never write down health,
   relationships, personal finances, other people by name, or secrets.
+  Any other page you write, fix or import there follows the `okf` skill.
 - `KIT-FEEDBACK.md` holds notes for the kit's maintainer; nothing in it leaves
   this repository without the user's yes.
 - `workspace.config` lists where data lives outside the repo, such as
@@ -110,8 +113,9 @@ result, through `unslop` and an explain brief:
   so the user can read the plan in OpenKnowledge.
 - Every change: `to-spec`, then `implement-spec`. The spec lives in the goal
   packet.
-- `tdd` while building. `code-review` before the branch lands; findings are
-  fixed, or waived with a reason written in the packet.
+- `tdd` while building. `mattpocock-skills:code-review` (named in full; a
+  bare `code-review` is Claude Code's built-in) before the branch lands;
+  findings are fixed, or waived with a reason written in the packet.
 - `retro` when the goal closes, written into the packet.
 
 ## Agent skills

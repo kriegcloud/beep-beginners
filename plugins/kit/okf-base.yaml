@@ -1,0 +1,33 @@
+# The kit's okflint manifest for a workspace's docs/ (D82).
+#
+# `kit docs lint` copies this file to a temporary folder, puts the absolute
+# path of the bundle in place of {root} (okflint resolves roots relative to
+# the manifest), and runs the okflint version pinned in kitlib/okf.py.
+#
+# No profile block on purpose: concept types are open (D61 gives defaults for
+# the common ones, and an import may bring others), so F101 would reject
+# legitimate pages. The kit's own `kit docs validate` covers type and status.
+
+okf_version: "0.2"
+
+base:
+  name: "workspace docs"
+  roots:
+    - path: '{root}'
+  reserved_files:
+    index: "index.md"
+    log: "log.md"
+  link_resolution:
+    scope: base
+    external_refs: []
+
+hygiene:
+  broken_links: warn       # L001-L003; the broken-links chore owns the user-facing line
+  split_candidates: warn   # S202; one concept per file, the agent judges
+  split:
+    exempt_types: [agent-config, glossary]   # reference pages for agents, many short sections by design
+  reserved_files: off      # R201; the kit writes index.md everywhere, log.md where something changed
+  unknown_fields: off      # F201; no profile, so every field would be unknown
+  okf_v02_shapes: error    # S203-S207; the kit writes these fields, so a bad shape is a real bug
+  legacy_forms: warn       # S208; OKF v0.1 forms in imported pages
+  stale_content: off       # S209; `kit docs stale` and the gardener own staleness

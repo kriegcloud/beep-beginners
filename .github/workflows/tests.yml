@@ -28,10 +28,29 @@ jobs:
       - run: uv run --script plugins/kit/tests/test_landing.py -q
       - run: uv run --script plugins/kit/tests/test_kit.py -q
       - run: uv run --script plugins/kit/tests/test_okf.py -q
-      - name: OKF conformance of the template docs, with the upstream validator (Apache-2.0, pinned)
+      - name: OKF conformance of the template docs (vendored upstream validator, then pinned okflint)
         run: |
-          curl -fsSL https://raw.githubusercontent.com/fabricioctelles/skills/ec4099f92fdeadcf1771c2a3f64efa4970733c89/skills/okf-open-knowledge-format/scripts/validate.sh -o /tmp/okf-validate.sh
-          bash /tmp/okf-validate.sh plugins/kit/template/docs
+          bash plugins/kit/skills/okf/upstream/scripts/validate.sh plugins/kit/template/docs
+          uv run --script plugins/kit/scripts/kit.py docs lint plugins/kit/template/docs | tee /tmp/lint.json
+          grep -q '"ok": true' /tmp/lint.json
+      - name: vendored OKF skill still matches its pinned upstream commit
+        run: |
+          set -e
+          python3 - <<'PY'
+          import hashlib, json, pathlib, urllib.request
+          skill = pathlib.Path("plugins/kit/skills/okf")
+          pin = json.loads((skill / "UPSTREAM.json").read_text())
+          base = f"https://raw.githubusercontent.com/fabricioctelles/skills/{pin['commit']}/"
+          for rel, entry in pin["files"].items():
+              upstream = urllib.request.urlopen(base + entry["from"], timeout=30).read()
+              assert hashlib.sha256(upstream).hexdigest() == entry["sha256"], f"{rel} differs from upstream at the pin"
+          print(f"{len(pin['files'])} vendored files match {pin['commit'][:12]}")
+          PY
+          head="$(git ls-remote https://github.com/fabricioctelles/skills.git refs/heads/main | cut -f1)"
+          pinned="$(python3 -c 'import json; print(json.load(open("plugins/kit/skills/okf/UPSTREAM.json"))["commit"])')"
+          if [ "$head" != "$pinned" ]; then
+            echo "::notice title=OKF skill upstream moved::fabricioctelles/skills main is $head, the kit vendors $pinned. Review the diff and re-vendor on purpose."
+          fi
       - name: smoke run of the kit on a fresh workspace
         run: |
           set -e
@@ -44,6 +63,7 @@ jobs:
           uv run --script "$KIT" land --message "Smoke" | tee /tmp/land.json
           grep -q '"branch": "goal/smoke-goal"' /tmp/land.json
           uv run --script "$KIT" chores run --where cloud --all >/dev/null
+          uv run --script "$KIT" docs lint | grep -q '"ok": true'
           uv run --script "$KIT" needs-you add --title "Smoke item" --brief "A brief." >/dev/null
           uv run --script "$KIT" needs-you read | grep -q "One thing needs you"
           test "$(git rev-parse --abbrev-ref HEAD)" = main

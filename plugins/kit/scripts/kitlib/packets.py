@@ -41,7 +41,8 @@ def write_state(folder: Path, state: dict) -> None:
 def mirror_frontmatter(folder: Path, state: dict) -> None:
     """D60: the README carries OKF trust fields so one staleness query covers
     the hub. `.packet.json` stays the lifecycle of record; the frontmatter
-    mirrors it. OKF `status` is the trust tier, not the packet's lifecycle."""
+    mirrors it. OKF `status` is the page's state (draft, stable,
+    deprecated), not the packet's lifecycle; the trust tier comes from `verified`."""
     readme = folder / "README.md"
     if not readme.exists():
         return
@@ -151,7 +152,7 @@ def goal_graduate(root: Path, slug: str, title: str, mission: str | None) -> dic
     parent.mkdir(exist_ok=True)
     folder = unique_folder(parent, slugify(title))
     shutil.copytree(TEMPLATES / "goal", folder)
-    _fill_folder(folder, {"title": title, "date": today(), "mission": mission or title,
+    _fill_folder(folder, {"title": title, "slug": folder.name, "date": today(), "mission": mission or title,
                           "exploration_title": src_state["title"], "exploration_slug": src.name})
     state = {"kind": "goal", "slug": folder.name, "title": title, "status": "active",
              "exploration": src.name, "created": today(), "projects": []}
