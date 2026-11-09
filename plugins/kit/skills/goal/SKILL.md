@@ -27,9 +27,16 @@ wayfinder map, a retro. The user can open all of it in OpenKnowledge.
 4. After each step, tick it in "Progress", add a trail line with
    `kit goal set <slug> --trail "<what happened>"`, and save with
    `kit land --message "Goal: <one line>"`.
-5. When everything in "Done means" holds, run `retro` (agent-only, written
-   into the packet as `RETRO.md` through `unslop`), then
-   `kit goal set <slug> --status done --trail "Done."` and tell the user.
+5. When everything in "Done means" holds, run `retro` (agent-only), then
+   record it so it gets actioned (D65):
+   `kit retro open --goal <slug> --summary "<three sentences through unslop>"`,
+   and one `kit retro add --goal <slug> --text "..." --kind chore|step|decision|lesson --due <date>`
+   per item. A recurring fix is a `chore`, a one-off a `step` (it lands in
+   `STEPS.md`), something only the user can decide a `decision` (a NEEDS-YOU
+   brief), a lesson a `lesson` (a page under `docs/lessons/` with the retro as
+   its source). Every item gets a due date; the gardener nags once about
+   overdue ones. The retro opens with the previous retro's scorecard.
+   Then `kit goal set <slug> --status done --trail "Done."` and tell the user.
 
 The kit lives at `${CLAUDE_PLUGIN_ROOT}/scripts/kit.py`. Run it with
 `uv run --script` from the workspace root. Never `git commit`.

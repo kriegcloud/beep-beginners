@@ -12,6 +12,7 @@ import shutil
 from pathlib import Path
 
 from .common import TEMPLATES, KitError, fill, slugify, today
+from . import okf
 
 STAGES = {
     "notes": "Collecting thoughts. Nothing has been checked yet.",
@@ -34,6 +35,49 @@ def read_state(folder: Path) -> dict:
 def write_state(folder: Path, state: dict) -> None:
     state["updated"] = today()
     (folder / ".packet.json").write_text(json.dumps(state, indent=2) + "\n", encoding="utf-8")
+    mirror_frontmatter(folder, state)
+
+
+def mirror_frontmatter(folder: Path, state: dict) -> None:
+    """D60: the README carries OKF trust fields so one staleness query covers
+    the hub. `.packet.json` stays the lifecycle of record; the frontmatter
+    mirrors it. OKF `status` is the trust tier, not the packet's lifecycle."""
+    readme = folder / "README.md"
+    if not readme.exists():
+        return
+    meta, body = okf.read(readme)
+    meta = meta or {}
+    lifecycle = state.get("status", "active")
+    meta.update({"type": state.get("kind", "exploration"), "title": state.get("title", folder.name),
+                 "description": f"{state.get('kind', 'exploration').capitalize()}: {state.get('title', folder.name)} ({lifecycle}).",
+                 "lifecycle": lifecycle})
+    meta.setdefault("generated", {"by": okf.KIT_ACTOR, "at": f"{state.get('created', today())}T00:00:00Z"})
+    meta["status"] = "deprecated" if lifecycle == "dropped" else "stable"
+    if lifecycle in ("active", "paused"):
+        meta["stale_after"] = f"{_plus_days(state.get('updated') or today(), 30)}T00:00:00Z"
+    else:
+        meta.pop("stale_after", None)
+    okf.write(readme, meta, body)
+
+
+def _plus_days(date_text: str, days: int) -> str:
+    import datetime as _dt
+    return (_dt.date.fromisoformat(date_text[:10]) + _dt.timedelta(days=days)).isoformat()
+
+
+def confirm(folder: Path, by: str) -> dict:
+    """The user confirmed this packet still matters: record human verification."""
+    state = read_state(folder)
+    readme = folder / "README.md"
+    meta, body = okf.read(readme)
+    meta = meta or {}
+    existing = meta.get("verified") or []
+    if isinstance(existing, dict):
+        existing = [existing]
+    meta["verified"] = existing + [{"by": by, "at": okf.now_iso().replace("+00:00", "Z")}]
+    okf.write(readme, meta, body)
+    write_state(folder, state)
+    return {"slug": folder.name, "verified_by": by}
 
 
 def append_trail(folder: Path, text: str) -> None:

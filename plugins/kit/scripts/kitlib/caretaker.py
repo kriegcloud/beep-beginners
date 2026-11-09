@@ -1,26 +1,28 @@
-"""The caretaker (D44 to D47): what runs with nobody awake.
+"""The caretaker (D44 to D47, D62, D66, D67, D74): what runs with nobody awake.
 
-`sweep` does the deterministic part of the daily run and returns a plan the
-cloud session acts on: merges done, PRs that need a fix, alerts, chores,
-staleness questions. `pr` handles one PR-opened fire. `install` renders the
-two routine bodies that the onboarding skill hands to the schedule tool.
-
-The never-list from D46 is spelled out in the routine prompts verbatim.
+Three commands (`sweep`, `pr`, `garden`) and three prompt files under
+plugins/kit/caretaker/, all runner-neutral. Cloud scheduled tasks are the
+default runner; `install --runner actions` emits the claude-code-action form.
+`idle` is the cheap REST check every run starts with. The never-list from D46
+is spelled out in every prompt verbatim.
 """
 
 from __future__ import annotations
 
+import datetime as dt
 import json
 import uuid
 from pathlib import Path
 
-from . import chores, github, landing, needs_you, packets
-from .common import KIT_ROOT, KitError, today
+from . import chores, feedback, github, needs_you, okf, packets, retro
+from .common import KIT_ROOT, KitError, read_json, today, write_json
 
 KIT_REPO = "kriegcloud/beep-beginners"
 RAW_BASE = f"https://raw.githubusercontent.com/{KIT_REPO}"
+PROMPTS = KIT_ROOT / "caretaker"
 MODEL = "claude-opus-5-5"
 EFFORT = "medium"
+STATE = Path(".kit") / "caretaker.json"
 
 NEVER = """Never, with nobody awake: change a price, publish anything, send a message to
 anyone, delete data, add a paid service, or keep pushing fixes once a check is
@@ -28,16 +30,90 @@ still red after one fix attempt. Each of those becomes a NEEDS-YOU item with a
 decision brief instead."""
 
 
+# ---------------------------------------------------------------- state and budget
+
+def load_state(root: Path) -> dict:
+    return read_json(root / STATE, {"schema": "beep-beginners/caretaker/v1", "routines": {}, "fix_attempts": {},
+                                    "garden_runs": {}, "plan": None, "runner": "cloud"})
+
+
+def save_state(root: Path, state: dict) -> None:
+    write_json(root / STATE, state)
+
+
+def fix_allowed(root: Path) -> bool:
+    return load_state(root)["fix_attempts"].get(today(), 0) < 1
+
+
+def fix_used(root: Path) -> dict:
+    state = load_state(root)
+    state["fix_attempts"][today()] = state["fix_attempts"].get(today(), 0) + 1
+    # keep a week of history
+    state["fix_attempts"] = {k: v for k, v in state["fix_attempts"].items() if (dt.date.today() - dt.date.fromisoformat(k)).days <= 7}
+    save_state(root, state)
+    return {"date": today(), "attempts": state["fix_attempts"][today()], "fix_allowed": fix_allowed(root)}
+
+
+def record_routines(root: Path, ids: dict, runner: str = "cloud", plan: str | None = None) -> dict:
+    state = load_state(root)
+    state["routines"].update({k: v for k, v in ids.items() if v})
+    state["runner"] = runner
+    if plan:
+        state["plan"] = plan
+    save_state(root, state)
+    return state
+
+
+def pause_info(root: Path) -> dict:
+    """What the caretaker-pause skill needs: the routine ids to flip."""
+    state = load_state(root)
+    return {"routines": state["routines"], "runner": state["runner"],
+            "note": "Flip each routine's `enabled` with the schedule tool's update action; the kit holds no token for it."}
+
+
+# ---------------------------------------------------------------- idle check (D74)
+
+def idle(root: Path, garden: bool = False) -> dict:
+    """One cheap REST round: is there anything for this run to do?"""
+    slug = github.repo_slug(root)
+    reasons: list[str] = []
+    prs = github.list_prs(slug)
+    if prs:
+        reasons.append(f"{len(prs)} open pull request(s)")
+    alerts = github.dependabot_alerts(slug)
+    if alerts:
+        reasons.append(f"{len(alerts)} Dependabot alert(s)")
+    if garden:
+        stale = okf.stale_concepts(root)
+        if stale:
+            reasons.append(f"{len(stale)} stale page(s)")
+        if okf.duplicate_drafts(root):
+            reasons.append("duplicate drafts")
+        if retro.overdue(root):
+            reasons.append("overdue retro items")
+        if chores.due(root, "cloud"):
+            reasons.append("cloud chores due")
+    else:
+        if chores.due(root, "cloud"):
+            reasons.append("cloud chores due")
+        if packets.stale(root, "exploration", 30) or packets.stale(root, "goal", 30):
+            reasons.append("stale packets")
+        if needs_you.is_monday():
+            reasons.append("Monday: weekly note")
+    return {"idle": not reasons, "reasons": reasons}
+
+
 # ---------------------------------------------------------------- sweep
 
 def sweep(root: Path, dry_run: bool = False) -> dict:
     slug = github.repo_slug(root)
     report: dict = {"date": today(), "repo": slug, "merged": [], "waiting": [], "needs_fix": [],
-                    "retried": [], "alerts": [], "chores": {}, "stale": [], "notes": []}
-    prs = github.list_prs(slug)
-    for pr in prs:
+                    "retried": [], "alerts": [], "chores": {}, "stale": [], "notes": [],
+                    "fix_allowed": fix_allowed(root)}
+    for pr in github.list_prs(slug):
         runs = github.check_runs(slug, pr["sha"])
-        gate = github.merge_gate(pr, runs)
+        statuses = github.commit_statuses(slug, pr["sha"])
+        gate = github.merge_gate(pr, runs, statuses)
         entry = {**pr, "gate": gate}
         if gate["ok"]:
             if dry_run:
@@ -48,11 +124,11 @@ def sweep(root: Path, dry_run: bool = False) -> dict:
         elif gate["pending"]:
             report["waiting"].append(entry)
         elif gate["red"]:
-            retry = {"retried": False} if dry_run else github.retry_failed_checks(slug, pr["number"])
-            if retry.get("retried"):
-                report["retried"].append({**entry, "retry": retry})
+            retry_result = {"retried": False} if dry_run else github.retry_failed_checks(slug, pr["number"])
+            if retry_result.get("retried"):
+                report["retried"].append({**entry, "retry": retry_result})
             else:
-                kit_made = pr["head"].startswith(("goal/", "project/", "claude/")) or pr["author"] in github.BOT_LOGINS
+                kit_made = pr["head"].startswith(("goal/", "project/", "claude/", "dependabot/")) or pr["author"] in github.BOT_LOGINS
                 report["needs_fix"].append({**entry, "kit_made": kit_made})
         else:
             report["waiting"].append(entry)
@@ -67,23 +143,45 @@ def sweep(root: Path, dry_run: bool = False) -> dict:
 def handle_pr(root: Path, number: int, max_seconds: int = 1200) -> dict:
     slug = github.repo_slug(root)
     watched = github.watch_pr(slug, number, max_seconds=max_seconds)
-    result = {"number": number, "watched": watched, "merged": False}
-    if watched["done"] and watched["gate"]["ok"]:
+    result = {"number": number, "watched": watched, "merged": False, "fix_allowed": fix_allowed(root)}
+    gate = watched["gate"]
+    if watched["done"] and gate["ok"]:
         merge = github.merge_pr(slug, number)
         result.update({"merged": merge["merged"], "merge": merge})
-    elif watched["done"] and watched["gate"]["red"]:
+    elif watched["done"] and gate["red"]:
         result["retry"] = github.retry_failed_checks(slug, number)
-        result["action"] = "fix once if this is a kit-made pull request; otherwise add a NEEDS-YOU item"
+        result["action"] = "fix once if this is a kit-made pull request and fix_allowed; otherwise add a NEEDS-YOU item"
+    elif watched["done"] and gate.get("review_missing"):
+        result["action"] = "kit/review is missing; the next desktop session reviews and posts it"
     else:
         result["action"] = "leave it to the morning sweep"
     return result
 
 
+# ---------------------------------------------------------------- garden (D62 to D65)
+
+def garden(root: Path, dry_run: bool = False) -> dict:
+    state = load_state(root)
+    week = dt.date.today().isocalendar()
+    key = f"{week[0]}-W{week[1]:02d}"
+    report: dict = {"date": today(), "week": key, "already_ran_this_week": key in state["garden_runs"]}
+    report["stale"] = okf.stale_concepts(root)
+    report["duplicates"] = okf.duplicate_drafts(root)
+    report["promoted"] = [] if dry_run else okf.promote_drafts(root)
+    report["overdue_retro"] = retro.overdue(root)
+    report["nagged"] = [] if dry_run else [n["id"] for n in retro.nag(root)]
+    report["chores"] = {} if dry_run else chores.run_due(root, "cloud", max_seconds=600, limit=None)
+    report["feedback_pending"] = len([n for n in feedback.load(root)["notes"] if not n["sent"]])
+    report["validate"] = okf.validate(root / "docs") if (root / "docs").exists() else {"ok": True}
+    if not dry_run:
+        okf.write_indexes(root)
+        state["garden_runs"][key] = today()
+        state["garden_runs"] = dict(list(state["garden_runs"].items())[-8:])
+        save_state(root, state)
+    return report
+
+
 # ---------------------------------------------------------------- bootstrap in the sandbox
-
-def fetch_manifest_text() -> str:
-    return (KIT_ROOT / "MANIFEST").read_text(encoding="utf-8")
-
 
 def bootstrap_snippet(ref: str = "main") -> str:
     """The shell lines a routine prompt starts with when the plugin route is
@@ -93,94 +191,123 @@ def bootstrap_snippet(ref: str = "main") -> str:
             f"&& export KIT=~/kit/plugins/kit/scripts/kit.py")
 
 
+def kit_line(route: str, ref: str) -> str:
+    return {
+        "plugin": ("The kit plugin is enabled on this routine; every `kit ...` command below means "
+                   "`uv run --script \"${CLAUDE_PLUGIN_ROOT}/scripts/kit.py\" ...` from the kit plugin's root."),
+        "fetch": ("First get the kit:\n\n```\n" + bootstrap_snippet(ref) + "\n```\n\nThen every `kit ...` command below means "
+                  "`uv run --script $KIT ...`."),
+        "repo": ("The kit is cloned next to the workspace as `beep-beginners`; set "
+                 "`KIT=../beep-beginners/plugins/kit/scripts/kit.py` and every `kit ...` command below means `uv run --script $KIT ...`."),
+        "actions": ("The kit is checked out at `./.kit-src/plugins/kit` by the workflow; every `kit ...` command below means "
+                    "`uv run --script ./.kit-src/plugins/kit/scripts/kit.py ...`."),
+    }[route]
+
+
+def prompt(name: str, workspace_url: str, route: str = "fetch", ref: str = "main") -> str:
+    text = (PROMPTS / f"{name}.md").read_text(encoding="utf-8")
+    return (text.replace("{{workspace_url}}", workspace_url).replace("{{kit_line}}", kit_line(route, ref))
+            .replace("{{never}}", NEVER))
+
+
 # ---------------------------------------------------------------- routine bodies
 
-def _event(prompt: str) -> dict:
+def _event(text: str) -> dict:
     return {"data": {"uuid": str(uuid.uuid4()), "session_id": "", "type": "user", "parent_tool_use_id": None,
-                     "message": {"content": prompt, "role": "user"}}}
-
-
-def sweep_prompt(workspace_url: str, ref: str = "main", kit_route: str = "fetch") -> str:
-    kit_line = {
-        "plugin": "The kit plugin is enabled on this routine; run its script through the plugin root.",
-        "fetch": "First get the kit:\n\n```\n" + bootstrap_snippet(ref) + "\n```\n\nThen use `uv run --script $KIT ...` for every kit command below.",
-        "repo": f"The kit is cloned next to the workspace as `beep-beginners`; set `KIT=../beep-beginners/plugins/kit/scripts/kit.py` and use `uv run --script $KIT ...`.",
-    }[kit_route]
-    return f"""You are the caretaker for the workspace at {workspace_url}. Work inside its clone. The person who owns it never reads GitHub; everything they need to know goes into NEEDS-YOU.md in plain words.
-
-{kit_line}
-
-Do the morning sweep:
-
-1. Run `kit caretaker sweep` and read its JSON. It has already merged every pull request whose checks were all green (through `kit pr merge`, the only merge path) and re-run failed checks once where that hadn't been tried.
-2. For each entry under `needs_fix` that is `kit_made` (a `goal/`, `project/` or Dependabot branch): check out that branch in a worktree, read the failing check's log with `gh api` (REST only; `gh pr` and GraphQL don't work here), make one fix attempt for a lint or test failure, commit and push the branch, and run `kit pr watch <number>` then `kit pr merge <number>`. If it is still red after that one attempt, stop and add a NEEDS-YOU item.
-3. For each entry under `needs_fix` that is not kit-made, and for anything that would change a price, publish, send, delete data or add a paid service: do not act. Add a NEEDS-YOU item with a decision brief (`kit explain --template brief` gives the shape: what I'm deciding, the options in one line each, what each costs in time, money or risk, what I recommend and why, what they'd have to do).
-4. Read `alerts` (Dependabot). A fix that is just a version bump with green checks merges itself through the PR path. Anything else becomes a NEEDS-YOU item.
-5. Read `stale`: every exploration or goal untouched for 30 days becomes one NEEDS-YOU question, keep, park or drop. Never move or delete anything yourself.
-6. If `monday` is true, write the weekly note with `kit needs-you weekly --text "..."`: three or four sentences on what happened this week, in the owner's words, no jargon.
-7. Finish with `kit land --message "Caretaker: <what changed, one line>"` and `kit sync --at end`. Push only `main` and existing kit branches; never force-push, never delete branches, never create a pull request on the kit repository.
-
-Write everything the owner will read as if to a smart friend who doesn't code: short sentences, no file paths, no git words. Add a glossary entry (`kit glossary add`) the first time a term appears.
-
-{NEVER}
-
-If the kit cannot be fetched or a command keeps failing, write what happened to NEEDS-YOU.md through `kit needs-you add` if that works, and stop. Do not improvise around the kit."""
-
-
-def pr_prompt(workspace_url: str, ref: str = "main", kit_route: str = "fetch") -> str:
-    kit_line = {
-        "plugin": "The kit plugin is enabled on this routine; run its script through the plugin root.",
-        "fetch": "First get the kit:\n\n```\n" + bootstrap_snippet(ref) + "\n```\n\nThen use `uv run --script $KIT ...` for every kit command below.",
-        "repo": "The kit is cloned next to the workspace as `beep-beginners`; set `KIT=../beep-beginners/plugins/kit/scripts/kit.py`.",
-    }[kit_route]
-    return f"""You are the caretaker for the workspace at {workspace_url}. A pull request was just opened there; its number is in the routine-fire-payload block, or find it with `gh api repos/<owner>/<repo>/pulls?state=open` (REST only; `gh pr` and GraphQL don't work here).
-
-{kit_line}
-
-1. Run `kit caretaker pr <number> --max-seconds 1200`. It waits for the checks, merges when every check is green (the only merge path), and re-runs failed checks once.
-2. If it reports red checks on a kit-made branch (`goal/`, `project/`, Dependabot): make one fix attempt for a lint or test failure in a worktree of that branch, push, and run `kit pr merge <number>` again. Still red: stop and add a NEEDS-YOU item with a decision brief (`kit explain --template brief`).
-3. If the checks are still running when the time runs out, do nothing more; the morning sweep picks it up.
-4. Finish with `kit land --message "Caretaker: <one line>"` and `kit sync --at end` if you changed anything on main.
-
-{NEVER}
-
-Write anything the owner reads in plain words: short sentences, no file paths, no git words."""
+                     "message": {"content": text, "role": "user"}}}
 
 
 def install_bodies(workspace_url: str, environment_id: str, cron_utc: str, ref: str = "main",
-                   route: str = "fetch", sources_extra: list[str] | None = None) -> dict:
+                   route: str = "fetch", garden_cron_utc: str | None = None, runner: str = "cloud") -> dict:
+    if runner == "actions":
+        return actions_workflows(workspace_url, cron_utc, garden_cron_utc or "7 3 * * 1", ref)
     sources = [{"git_repository": {"url": workspace_url}}]
     if route == "repo":
         sources.append({"git_repository": {"url": f"https://github.com/{KIT_REPO}"}})
-    for extra in sources_extra or []:
-        sources.append({"git_repository": {"url": extra}})
     tools = ["Bash", "Read", "Write", "Edit", "Glob", "Grep", "Skill"]
 
-    def body(name: str, prompt: str, cron: str | None) -> dict:
+    def body(name: str, text: str, cron: str | None) -> dict:
         b: dict = {"name": name, "enabled": True, "clear_mcp_connections": True,
                    "job_config": {"ccr": {"environment_id": environment_id,
                                           "session_context": {"model": MODEL, "effort": EFFORT, "sources": sources,
                                                               "allowed_tools": tools},
-                                          "events": [_event(prompt)]}}}
+                                          "events": [_event(text)]}}}
         if cron:
             b["cron_expression"] = cron
         if route == "plugin":
-            b["extra_marketplaces"] = [{"name": "beep-beginners", "source": {"source": "github", "repo": KIT_REPO}}]
+            b["extra_marketplaces"] = [{"name": "beep-beginners", "source": {"source": "github", "repo": KIT_REPO, "ref": ref}}]
             b["enabled_plugins"] = ["kit@beep-beginners"]
         return b
 
     return {
-        "sweep": body("beep-beginners caretaker: morning sweep", sweep_prompt(workspace_url, ref, route), cron_utc),
-        "pr_opened": body("beep-beginners caretaker: pull request opened", pr_prompt(workspace_url, ref, route), None),
+        "sweep": body("beep-beginners caretaker: morning sweep", prompt("sweep", workspace_url, route, ref), cron_utc),
+        "pr_opened": body("beep-beginners caretaker: pull request opened", prompt("pr", workspace_url, route, ref), None),
+        "garden": body("beep-beginners caretaker: weekly gardener", prompt("garden", workspace_url, route, ref),
+                       garden_cron_utc or "7 3 * * 1"),
         "webhook": {"source": "github", "repository": workspace_url, "events": ["pull_request.opened"],
                     "routine_trigger_id": "<id of pr_opened once created>"},
-        "notes": ["Create the sweep with the schedule tool's create action, then pr_opened, then create_webhook_trigger "
-                  "with pr_opened's id. Record both ids in the onboarding state and the evidence."],
+        "notes": ["Create sweep, then pr_opened, then garden with the schedule tool's create action; then "
+                  "create_webhook_trigger with pr_opened's id. Record the three ids with `kit caretaker record`."],
     }
 
 
-def local_time_to_utc_cron(hour: int, minute: int, utc_offset_hours: float) -> str:
+def actions_workflows(workspace_url: str, cron_utc: str, garden_cron_utc: str, ref: str) -> dict:
+    """D67: the same three runs as GitHub Actions workflows on claude-code-action
+    with a subscription OAuth token (CLAUDE_CODE_OAUTH_TOKEN repository secret)."""
+    def wf(name: str, on: str, text: str) -> str:
+        return f"""# {name}: emitted by `kit caretaker install --runner actions` (D67). The token is a
+# subscription OAuth token from `claude setup-token`, stored as the repository
+# secret CLAUDE_CODE_OAUTH_TOKEN. Rotate it when it expires.
+name: caretaker-{name}
+on:
+{on}
+permissions:
+  contents: write
+  pull-requests: write
+  checks: read
+  actions: write
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: {KIT_REPO}
+          ref: {ref}
+          path: .kit-src
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+      - uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{{{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}}}
+          github_token: ${{{{ secrets.GITHUB_TOKEN }}}}
+          prompt: |
+{_indent(text, 12)}
+          claude_args: "--model {MODEL} --max-turns 80"
+"""
+    return {
+        "sweep": wf("sweep", f"  schedule:\n    - cron: \"{cron_utc}\"\n  workflow_dispatch:", prompt("sweep", workspace_url, "actions", ref)),
+        "pr_opened": wf("pr", "  pull_request:\n    types: [opened]", prompt("pr", workspace_url, "actions", ref)),
+        "garden": wf("garden", f"  schedule:\n    - cron: \"{garden_cron_utc}\"\n  workflow_dispatch:", prompt("garden", workspace_url, "actions", ref)),
+        "notes": ["Write each to .github/workflows/caretaker-<name>.yml, add the CLAUDE_CODE_OAUTH_TOKEN secret, and land."],
+    }
+
+
+def _indent(text: str, n: int) -> str:
+    pad = " " * n
+    return "\n".join(pad + line if line else "" for line in text.splitlines())
+
+
+def local_time_to_utc_cron(hour: int, minute: int, utc_offset_hours: float, weekday: int | None = None) -> str:
     """7:07 local with offset -6 -> '7 13 * * *'. Daylight time shifts it an hour; fine for a sweep."""
     total = (hour * 60 + minute) - int(utc_offset_hours * 60)
+    day_shift = 0
+    if total < 0:
+        day_shift = -1
+    elif total >= 24 * 60:
+        day_shift = 1
     total %= 24 * 60
-    return f"{total % 60} {total // 60} * * *"
+    dow = "*" if weekday is None else str((weekday + day_shift) % 7)
+    return f"{total % 60} {total // 60} * * {dow}"

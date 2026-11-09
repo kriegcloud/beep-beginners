@@ -27,6 +27,11 @@ jobs:
       - run: uv run --script plugins/kit/tests/test_rules.py -q
       - run: uv run --script plugins/kit/tests/test_landing.py -q
       - run: uv run --script plugins/kit/tests/test_kit.py -q
+      - run: uv run --script plugins/kit/tests/test_okf.py -q
+      - name: OKF conformance of the template docs, with the upstream validator (Apache-2.0, pinned)
+        run: |
+          curl -fsSL https://raw.githubusercontent.com/fabricioctelles/skills/ec4099f92fdeadcf1771c2a3f64efa4970733c89/skills/okf-open-knowledge-format/scripts/validate.sh -o /tmp/okf-validate.sh
+          bash /tmp/okf-validate.sh plugins/kit/template/docs
       - name: smoke run of the kit on a fresh workspace
         run: |
           set -e

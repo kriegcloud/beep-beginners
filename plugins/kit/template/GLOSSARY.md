@@ -1,3 +1,12 @@
+---
+type: glossary
+title: Glossary
+description: "Words that came up, explained once."
+generated:
+  by: process:kit
+  at: "2026-11-08T00:00:00Z"
+status: stable
+---
 # Glossary
 
 Words that came up, explained once. Claude adds a term the first time it uses it.

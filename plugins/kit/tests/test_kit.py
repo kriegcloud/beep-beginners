@@ -220,7 +220,7 @@ def test_profile_write_rejects_bad_skill_names(ws):
 # ---------------------------------------------------------------- merge gate
 
 def pr(**kw):
-    base = {"state": "open", "draft": False, "mergeable": True, "mergeable_state": "clean"}
+    base = {"state": "open", "draft": False, "mergeable": True, "mergeable_state": "clean", "author": "sam"}
     return {**base, **kw}
 
 
@@ -228,18 +228,29 @@ def run(name, status="completed", conclusion="success"):
     return {"name": name, "status": status, "conclusion": conclusion, "url": "", "id": 1}
 
 
+REVIEWED = [{"context": "kit/review", "state": "success", "description": "reviewed"}]
+
+
 def test_merge_gate():
-    assert github.merge_gate(pr(), [run("gitleaks"), run("tests")])["ok"]
-    assert "no checks" in github.merge_gate(pr(), [])["reasons"][0]
-    g = github.merge_gate(pr(), [run("gitleaks"), run("tests", "in_progress", None)])
+    assert github.merge_gate(pr(), [run("gitleaks"), run("tests")], REVIEWED)["ok"]
+    assert "no checks" in github.merge_gate(pr(), [], REVIEWED)["reasons"][0]
+    g = github.merge_gate(pr(), [run("gitleaks"), run("tests", "in_progress", None)], REVIEWED)
     assert not g["ok"] and g["pending"]
-    g = github.merge_gate(pr(), [run("gitleaks"), run("tests", conclusion="failure")])
+    g = github.merge_gate(pr(), [run("gitleaks"), run("tests", conclusion="failure")], REVIEWED)
     assert not g["ok"] and g["red"] == ["tests"]
-    assert not github.merge_gate(pr(), [run("tests")])["ok"]  # no gitleaks run
-    assert not github.merge_gate(pr(), [run("gitleaks", conclusion="failure"), run("tests")])["ok"]
-    assert not github.merge_gate(pr(draft=True), [run("gitleaks")])["ok"]
-    assert not github.merge_gate(pr(mergeable=False, mergeable_state="dirty"), [run("gitleaks")])["ok"]
-    assert github.merge_gate(pr(), [run("gitleaks"), run("semgrep", conclusion="skipped")])["ok"]
+    assert not github.merge_gate(pr(), [run("tests")], REVIEWED)["ok"]  # no gitleaks run
+    assert not github.merge_gate(pr(), [run("gitleaks", conclusion="failure"), run("tests")], REVIEWED)["ok"]
+    assert not github.merge_gate(pr(draft=True), [run("gitleaks")], REVIEWED)["ok"]
+    assert not github.merge_gate(pr(mergeable=False, mergeable_state="dirty"), [run("gitleaks")], REVIEWED)["ok"]
+    assert github.merge_gate(pr(), [run("gitleaks"), run("semgrep", conclusion="skipped")], REVIEWED)["ok"]
+
+
+def test_merge_gate_requires_kit_review_except_for_bots():
+    g = github.merge_gate(pr(), [run("gitleaks"), run("tests")], [])
+    assert not g["ok"] and g["review_missing"] and "kit/review" in g["reasons"][0]
+    g = github.merge_gate(pr(), [run("gitleaks")], [{"context": "kit/review", "state": "failure", "description": "2 findings open"}])
+    assert not g["ok"] and "kit/review is failure" in g["reasons"][0]
+    assert github.merge_gate(pr(author="dependabot[bot]"), [run("gitleaks"), run("tests")], [])["ok"]
 
 
 def test_actions_run_id():
@@ -253,20 +264,36 @@ def test_install_bodies_shape():
     bodies = caretaker.install_bodies("https://github.com/o/ws", "env_1", "7 13 * * *", route="fetch")
     sweep = bodies["sweep"]
     assert sweep["cron_expression"] == "7 13 * * *" and "cron_expression" not in bodies["pr_opened"]
+    assert bodies["garden"]["cron_expression"]
     ctx = sweep["job_config"]["ccr"]["session_context"]
     assert ctx["model"] == "claude-opus-5-5" and ctx["sources"] == [{"git_repository": {"url": "https://github.com/o/ws"}}]
-    prompt = sweep["job_config"]["ccr"]["events"][0]["data"]["message"]["content"]
-    assert caretaker.NEVER in prompt and "raw.githubusercontent.com/kriegcloud/beep-beginners/main" in prompt
+    for name in ("sweep", "pr_opened", "garden"):
+        text = bodies[name]["job_config"]["ccr"]["events"][0]["data"]["message"]["content"]
+        assert caretaker.NEVER in text and "raw.githubusercontent.com/kriegcloud/beep-beginners/main" in text
+        assert "{{" not in text and "kit caretaker idle" in text or name == "pr_opened"
     assert sweep["clear_mcp_connections"] is True
     repo = caretaker.install_bodies("https://github.com/o/ws", "env_1", "7 13 * * *", route="repo")
     assert len(repo["sweep"]["job_config"]["ccr"]["session_context"]["sources"]) == 2
-    plugin = caretaker.install_bodies("https://github.com/o/ws", "env_1", "7 13 * * *", route="plugin")
+    plugin = caretaker.install_bodies("https://github.com/o/ws", "env_1", "7 13 * * *", route="plugin", ref="v3")
     assert plugin["sweep"]["enabled_plugins"] == ["kit@beep-beginners"]
+    assert plugin["sweep"]["extra_marketplaces"][0]["source"]["ref"] == "v3"
+    actions = caretaker.install_bodies("https://github.com/o/ws", "", "7 13 * * *", runner="actions")
+    assert "anthropics/claude-code-action" in actions["sweep"] and "CLAUDE_CODE_OAUTH_TOKEN" in actions["sweep"]
+    assert "pull_request:" in actions["pr_opened"]
 
 
 def test_local_time_to_utc_cron():
     assert caretaker.local_time_to_utc_cron(7, 7, -6) == "7 13 * * *"
     assert caretaker.local_time_to_utc_cron(23, 30, 2) == "30 21 * * *"
+    assert caretaker.local_time_to_utc_cron(21, 7, -6, weekday=0) == "7 3 * * 1"  # Sunday 21:07 Chicago = Monday 03:07 UTC
+
+
+def test_fix_budget(ws):
+    assert caretaker.fix_allowed(ws)
+    caretaker.fix_used(ws)
+    assert not caretaker.fix_allowed(ws)
+    caretaker.record_routines(ws, {"sweep": "trig_1", "pr_opened": "trig_2", "garden": ""}, plan="max5")
+    assert caretaker.pause_info(ws)["routines"] == {"sweep": "trig_1", "pr_opened": "trig_2"}
 
 
 # ---------------------------------------------------------------- manifest

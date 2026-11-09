@@ -16,6 +16,30 @@
 # is deleted without a yes.
 schema: beep-beginners/chores/v1
 chores:
+  - id: migrate
+    cadence: 1
+    where: desktop
+    line: "Applied a kit update to your workspace."
+  - id: caretaker-setup
+    cadence: 7
+    where: desktop
+    line: "Ten minutes to set up your caretaker? It tidies up while you're away."
+  - id: merge-green
+    cadence: 1
+    where: desktop
+    line: "Finished work that passed its checks is now in the main copy."
+  - id: caretaker-health
+    cadence: 1
+    where: desktop
+    line: "Checked on the caretaker's last run."
+  - id: okf-validate
+    cadence: 7
+    where: both
+    line: "Checked that every page in docs is well formed."
+  - id: docs-promote
+    cadence: 7
+    where: both
+    line: "{n} note(s) from earlier sessions are now settled facts."
   - id: index
     cadence: 1
     where: both

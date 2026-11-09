@@ -30,7 +30,7 @@ STEPS = [
     ("bootstrap", "Claude Code, the kit and this setup are installed"),
     ("detect", "Look at what this computer already has"),
     ("chrome", "Claude in Chrome is installed and connected"),
-    ("questions", "Your accounts, subscriptions and what you want"),
+    ("questions", "Your accounts, subscriptions, plan and what you want"),
     ("profile", "Read your Claude memories and draft your profile"),
     ("install-user", "Install the apps that don't need permission"),
     ("install-machine", "Install the rest, behind one Windows permission prompt"),
@@ -40,15 +40,16 @@ STEPS = [
     ("passwords", "Move your passwords from Bitwarden into 1Password"),
     ("github-key", "Give this computer a key for GitHub"),
     ("location", "Pick where your workspace lives"),
-    ("workspace", "Create your private workspace on GitHub"),
-    ("github-app", "Let Claude's cloud helper reach your workspace"),
-    ("caretaker", "Set up the caretaker that tidies up while you're away"),
+    ("workspace", "Create your private workspace on GitHub, with security notices on"),
     ("signin-tailscale", "Sign in to Tailscale"),
     ("remote-help", "Set up the help line to your helper"),
     ("other-ai", "Set up your other AI subscriptions"),
     ("verify", "Check that every app works"),
     ("first-exploration", "Start on the first thing you want to figure out"),
 ]
+# The cloud pieces (D68) are a later sitting: the caretaker-setup chore proposes
+# them at a session start and the caretaker-setup skill records these answers:
+#   github_app, cloud_ready, caretaker_sweep_id, caretaker_pr_id, caretaker_garden_id
 
 
 def state_dir() -> Path:

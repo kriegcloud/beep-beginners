@@ -513,6 +513,174 @@ software list, the VM proof.
   the engineering skills talk to the user directly (their output assumes a
   developer).
 
+### D60. `docs/` is an Open Knowledge Format bundle [added 2026-11-08 to the brief]
+
+- **Answer.** `docs/` conforms to OKF v0.2 (okf.md; spec in
+  GoogleCloudPlatform/open-knowledge-format): one concept per markdown file
+  with YAML frontmatter, `type` required, plus `description`, `sources`
+  (footnotes keyed by `sources[].id`), `generated {by, at}`, `verified
+  [{by, at}]`, `status` (draft, stable, deprecated) and `stale_after`.
+  `kit index` writes each folder's `index.md` with the trust tier; `kit land`
+  appends to `docs/log.md` when a page changed. Explorations and goals keep
+  their packet layout; their README frontmatter carries the OKF fields so one
+  staleness query covers the hub. `GLOSSARY.md` stays at the root with the
+  same frontmatter. Validation runs as `kit docs validate` (Python, so it
+  works on the user's Windows machine as a chore) and, in the kit's CI, also
+  as the upstream skill's `validate.sh` (Apache-2.0, fetched at a pinned
+  commit, not vendored).
+- **Ownership (the build's answer to the open question).** `.packet.json`
+  owns a packet's lifecycle (active, parked, dropped, graduated; stage; open
+  questions). The README frontmatter owns only the trust fields and mirrors
+  title, description and dates; `packets.py` rewrites it on every state
+  change. OKF `status` is the trust tier, never the lifecycle: a dropped
+  packet is `deprecated`, everything else `stable`, with `stale_after` 30
+  days after the last update while active. The lifecycle is also mirrored as
+  a `lifecycle` key for readers.
+- **Rejected.** `docs/` only (packet staleness stays an mtime heuristic);
+  the whole hub as one bundle (reshapes packets and the wayfinder map).
+
+### D61. Trust and staleness policy [added 2026-11-08]
+
+- **Answer.** Per-type `stale_after` defaults in the kit: how-tos, tool facts
+  and workflows 90 days; preferences and profile facts 180; business, money
+  and account facts 30; decisions, lessons and the glossary never. Past the
+  date, the gardener rechecks against `sources` and writes a machine
+  `verified` entry (`process:gardener`), or marks `deprecated` and asks.
+  When the user confirms a fact, the agent records `human:<name>`. Agents
+  prefer human-reviewed pages when two disagree.
+- **Rejected.** Machine-only verification; no defaults.
+
+### D62. A third cloud task: the weekly gardener [added 2026-11-08]
+
+- **Answer.** Sunday night, a longer run: recheck stale pages, consolidate
+  `docs/`, promote week-old drafts, chase retro items, compare `AGENTS.md` to
+  how sessions went, propose improvements. The daily sweep stays fast and
+  safe. `kit caretaker garden` does the deterministic part. Onboarding's
+  second sitting (D68) creates all three tasks; the welcome says they spend
+  the subscription.
+- **Rejected.** Folding it into the daily sweep; chores-only on the desktop.
+
+### D63. The gardener's self-edit line [added 2026-11-08]
+
+On its own: `docs/` pages, index and log, `GLOSSARY.md`, packet bookkeeping,
+`NEEDS-YOU.md`, chore timestamps, and the user's generated skills under
+`.claude/skills/` when a retro or a repeated correction shows a rule wrong
+(change logged). By NEEDS-YOU brief only: any `AGENTS.md`,
+`.claude/settings.json`, chores overrides, anything adding a tool or a cost.
+Kit-owned files are never edited in a workspace; `kit feedback add` writes a
+maintainer note instead (D73). Rejected: knowledge-only; everything except
+settings.
+
+### D64. `docs/` is the memory of record [added 2026-11-08]
+
+A session writes durable learnings as `draft` pages with `generated` and
+`sources` (the `remember` skill, `kit docs new --export`). The gardener
+consolidates: merge duplicates, resolve contradictions toward the newer or
+human-reviewed page, deprecate what is superseded, refresh the index. Claude
+Code's local auto-memory is a rebuildable cache the cloud never sees; chat
+memories enter only through the onboarding import. Rejected: consolidating
+`~/.claude` auto-memory only; two synced stores.
+
+### D65. Retros get actioned [added 2026-11-08]
+
+`kit retro add` sorts each item: a recurring fix becomes a chores override
+proposal, a one-off a step in the goal's `STEPS.md`, a decision a NEEDS-YOU
+brief, a lesson a `docs/lessons/` page with the retro as its source. Every
+item has a due date. The gardener lists overdue items, does what D63 allows,
+and nags once in NEEDS-YOU for the rest. The next retro opens with the last
+one's scorecard. Rejected: goal steps only; write-and-hope.
+
+### D66. Caretaker on Max only [added 2026-11-08]
+
+Cloud tasks draw from the user's own usage pool; nothing pauses them at the
+limit and runs are rejected until the window resets. Onboarding asks the
+plan. Max 5x or higher gets the three tasks; Pro gets session-start chores
+only (the `merge-green` chore puts finished green work on main at the next
+desktop session), and the welcome says what upgrading unlocks.
+
+### D67. Swappable runner [added 2026-11-08]
+
+The caretaker is `kit caretaker sweep | pr | garden` plus three prompt files
+under `plugins/kit/caretaker/`, runner-neutral. Cloud scheduled tasks are the
+default; `kit caretaker install --runner actions` emits the
+`claude-code-action` workflows with a `CLAUDE_CODE_OAUTH_TOKEN` secret.
+Nothing more abstract than that.
+
+### D68. Two sittings [added 2026-11-08]
+
+Day one ends at the aha: machine, workspace, profile, security enabled, first
+exploration packet (D57). The cloud pieces (claude.ai cloud onboarding, the
+GitHub App install, the three tasks) are the `caretaker-setup` skill, which
+the `caretaker-setup` chore proposes at a later session start. Onboarding's
+steps were reordered accordingly.
+
+### D69. `kit sync` reconciles [added 2026-11-08]
+
+Per `projects/<name>` at session start: tree equals the branch tip, pull
+main, done. Edited since, land the edits onto the branch first (the kit's
+version of stash and reapply), pull, re-materialize. Branch diverged from
+the caretaker's copy: merge with `git merge-tree` without touching the
+checkout; a real conflict becomes a NEEDS-YOU item in plain words, both
+versions stay as commits, and the agent resolves it with the user. The user
+never hears "rebase".
+
+### D70. The `kit/review` verdict [added 2026-11-08; amended by the build]
+
+- **Brief.** Post a `kit/review` check run before `kit pr open`; `kit pr
+  merge` requires it.
+- **Finding.** GitHub's Checks API is GitHub App only: "To create a check
+  run, you must use a GitHub App", and OAuth apps and authenticated users
+  can't. No `gh` scope changes that. So the verdict is a **commit status**
+  with context `kit/review` on the head SHA, which the user's token posts
+  with the `repo` scope (already requested in the one GitHub login). The
+  gate reads the combined status. Everything else stands: the desktop agent
+  runs `code-review`, fixes or waives in the goal packet (`kit review record`
+  writes `goals/<slug>/reviews/<date>-<project>.md`), `kit pr open` posts the
+  status, `kit pr merge` requires it for every PR a person's account opened,
+  and Dependabot PRs skip review but not the scanners. A new push gets a new
+  SHA with no status, so a caretaker fix must re-review and re-post
+  (`kit pr review-status`).
+
+### D71. Memory export rule [added 2026-11-08]
+
+Session-end exports may be `preference`, `business-fact`, `workflow`,
+`correction` or `lesson` (`kit docs new --export` enforces the list). Never
+health, relationships, finances beyond the business, a third person by name,
+credentials, or anything the user said not to write down. Each export is a
+`draft` the session mentions in one line; the gardener promotes week-old
+drafts to `stable` unless deprecated.
+
+### D72. Tagged releases on `stable`, with `kit migrate` [added 2026-11-08]
+
+- **Finding.** The marketplace source schema supports a ref: a `github`
+  marketplace source takes `repo`, `ref`, `path` and `sparsePaths`, and
+  `claude plugin marketplace add owner/repo@ref` produces it. So workspaces
+  track `kriegcloud/beep-beginners` at `ref: stable`; the test VM and
+  Benjamin's own workspace set `BEEP_BEGINNERS_KIT_REF=main`.
+- **Answer.** A release is a fast-forward of `stable` after the kit's CI is
+  green and the VM proof passed, with a tag. A release may carry a migration
+  under `plugins/kit/migrations/NNNN-<name>.py` (idempotent `apply(root)`);
+  `kit migrate` runs pending ones as the first session-start chore, logged in
+  `.kit/migrations.json`. `0001-v3-baseline` brings a v2 workspace up to v3.
+
+### D73. `KIT-FEEDBACK.md` [added 2026-11-08]
+
+The gardener appends scrubbed notes about kit-owned files it found wrong
+(`kit feedback add`; emails, URLs, paths, tokens and phone numbers are
+replaced). It shows once in NEEDS-YOU; on the user's yes, `kit feedback
+send` opens one issue on `kriegcloud/beep-beginners` through the user's `gh`.
+Nothing leaves the private repository without a yes.
+
+### D74. Budget guards and a pause skill [added 2026-11-08]
+
+Every task's first step is `kit caretaker idle`, one cheap REST round that
+ends the run when there is nothing to do. The sweep makes at most one fix
+attempt a day (`fix_allowed`, `kit caretaker fix-used`); the gardener one
+pass a week. The `caretaker-pause` skill flips the tasks' on/off switch from
+a session through the schedule tool. The welcome has one line on usage and
+pausing. A run rejected at the usage limit shows up as one NEEDS-YOU line via
+the `caretaker-health` chore.
+
 ## Facts from research that shape the build
 
 - 1Password Individual is about $36 for the first year, then about $48 a year.

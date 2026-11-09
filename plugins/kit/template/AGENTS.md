@@ -70,6 +70,13 @@ operator mode.
 - `NEEDS-YOU.md` is the caretaker's page: what it couldn't decide alone, what
   it did this week, what you settled lately. Read it aloud at session start.
 - `GLOSSARY.md` holds every term that has come up, explained once.
+- `docs/` is the memory of record: one page per fact, how-to or lesson, each
+  saying who wrote it, who checked it and when it goes stale. Near the end of
+  a session, use the `remember` skill for anything durable you learned (a
+  preference, a business fact, a correction). Never write down health,
+  relationships, personal finances, other people by name, or secrets.
+- `KIT-FEEDBACK.md` holds notes for the kit's maintainer; nothing in it leaves
+  this repository without the user's yes.
 - `workspace.config` lists where data lives outside the repo, such as
   workbooks and photos in Documents. It holds paths only. Read paths from
   it instead of guessing.

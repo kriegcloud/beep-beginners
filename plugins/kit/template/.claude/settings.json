@@ -10,7 +10,8 @@
     "beep-beginners": {
       "source": {
         "source": "github",
-        "repo": "kriegcloud/beep-beginners"
+        "repo": "kriegcloud/beep-beginners",
+        "ref": "stable"
       },
       "autoUpdate": true
     }

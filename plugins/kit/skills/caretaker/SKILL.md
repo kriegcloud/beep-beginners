@@ -30,6 +30,13 @@ In a cloud run the kit may have been fetched to `~/kit`; then `$KIT` points
 at the script instead of the plugin root. GitHub calls are `gh api` REST only;
 `gh pr` and GraphQL fail in the sandbox.
 
+## Every run starts cheap (D74)
+
+`kit caretaker idle` (or `kit caretaker idle --garden`) is one REST round. If
+it says `idle: true`, stop: nothing to do today. The sweep makes at most one
+fix attempt a day (`fix_allowed` in its JSON; record one with
+`kit caretaker fix-used`); the gardener makes one pass a week.
+
 ## The morning sweep
 
 1. `kit caretaker sweep`. It merges every pull request whose checks are all
@@ -52,6 +59,26 @@ at the script instead of the plugin root. GitHub calls are `gh api` REST only;
 6. `monday` true: `kit needs-you weekly` with three or four sentences on
    what happened this week, in the owner's words.
 7. `kit land --message "Caretaker: <what changed>"` then `kit sync --at end`.
+
+## The weekly gardener (D62 to D65)
+
+`kit caretaker garden` returns `stale` (pages past `stale_after`),
+`duplicates` (draft pages that look alike), `promoted`, `overdue_retro`,
+`feedback_pending` and an OKF validation. For each stale page: open it and
+its sources; if they still agree, `kit docs verify <id> --by process:gardener`;
+if not, `kit docs deprecate <id> --reason "..."` and one NEEDS-YOU question.
+For each duplicate group: keep the newer or human-reviewed page, fold the
+other's facts in with footnotes, deprecate the other. Human-reviewed beats
+machine-checked when two disagree (D61).
+
+On its own the gardener may change (D63): `docs/` pages, index and log,
+`GLOSSARY.md`, packet bookkeeping, `NEEDS-YOU.md`, chore timestamps, and the
+user's own skills under `.claude/skills/` when a retro or a repeated
+correction shows a rule wrong (log why in `docs/log.md`). By NEEDS-YOU brief
+only: `AGENTS.md`, `.claude/settings.json`, chores overrides, anything that
+adds a tool or a cost. Files the kit owns are never edited in a workspace:
+`kit feedback add --what "..." --fix "..." --file "<path>"` instead (D73);
+the user decides whether that leaves the repository.
 
 ## A pull request just opened
 

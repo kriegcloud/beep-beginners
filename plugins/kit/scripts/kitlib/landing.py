@@ -211,6 +211,11 @@ def land(root: Path, message: str | None = None, allow_secrets: bool = False) ->
                        f"{names}. Move the secret to 1Password (op://...) and remove it from the file.")
 
     result: dict = {"landed": True, "message": message, "secrets": scan, "hub": [], "projects": []}
+    if any(p.startswith("docs/") and p.endswith(".md") and not p.endswith(("/log.md", "/index.md")) for p in hub):
+        from . import okf
+        okf.log_append(root / "docs", f"**Update** {message}")
+        okf.write_indexes(root)
+        hub = sorted(set(hub) | {p for p in changed_paths(root) if p.startswith("docs/")})
     if hub:
         git(root, "add", "-A", "--", *hub, timeout=60, check=True)
         staged = git(root, "diff", "--cached", "--quiet", timeout=30).returncode == 1
@@ -254,6 +259,31 @@ def _materialize(root: Path, prefix: str, revision: str | None) -> None:
         git(root, "checkout", revision, "--", prefix, timeout=60, check=True)
     # Reflect the result in the index so `git status` matches the tree on disk.
     git(root, "reset", "-q", "--", prefix, timeout=30)
+
+
+def _reconcile(root: Path, name: str, branch: str, local_sha: str, remote_sha: str) -> str:
+    """Both this computer and the caretaker added commits to the branch. Merge
+    them without touching the checkout (git merge-tree, git 2.38+). A real
+    conflict becomes a NEEDS-YOU item in plain words (D69)."""
+    out = git(root, "merge-tree", "--write-tree", local_sha, remote_sha, timeout=60)
+    if out.returncode == 0 and out.stdout.strip():
+        tree = out.stdout.strip().splitlines()[0]
+        commit = git(root, "commit-tree", tree, "-p", local_sha, "-p", remote_sha,
+                     "-m", f"Bring together this computer's and the caretaker's work on {name}", timeout=30, check=True).stdout.strip()
+        git(root, "update-ref", f"refs/heads/{branch}", commit, timeout=10, check=True)
+        return f"brought together two versions of {name}"
+    from . import needs_you
+    brief = (f"**What I'm deciding.** Your work on {name} and the caretaker's fix changed the same lines, and I can't tell which "
+             f"version you want.\n\n**Your options.**\n- Keep your version\n- Keep the caretaker's version\n- Look at both together with me\n\n"
+             f"**What each costs you.**\n- Your version: the caretaker's fix is redone later\n- The caretaker's: your last edit to those lines is redone\n"
+             f"- Both: ten minutes with me\n\n**What I recommend, and why.** Look at both together; it's usually one or two lines.\n\n"
+             f"**What you'd have to do.** Say which, and I'll do the rest.")
+    try:
+        if not any(i.get("kind") == "conflict" and name in i.get("title", "") for i in needs_you.load(root)["open"]):
+            needs_you.add(root, f"Two versions of {name} need your pick", brief, source="kit sync", kind="conflict")
+    except KitError:
+        pass
+    return f"conflict in {name}: both this computer and the caretaker changed it; asked in NEEDS-YOU"
 
 
 def sync(root: Path, at: str = "start", open_pr=None) -> dict:
@@ -306,8 +336,16 @@ def sync(root: Path, at: str = "start", open_pr=None) -> dict:
                 local_sha = git(root, "rev-parse", "--verify", "--quiet", f"refs/heads/{branch}", timeout=10).stdout.strip()
                 if local_sha and local_sha != remote_sha:
                     behind = git(root, "merge-base", "--is-ancestor", local_sha, remote_sha, timeout=20).returncode == 0
+                    ahead = git(root, "merge-base", "--is-ancestor", remote_sha, local_sha, timeout=20).returncode == 0
                     if behind:
                         git(root, "update-ref", f"refs/heads/{branch}", remote_sha, timeout=10)
+                    elif not ahead:
+                        outcome = _reconcile(root, name, branch, local_sha, remote_sha)
+                        report["notes"].append(outcome)
+                        if outcome.startswith("conflict"):
+                            report.setdefault("conflicts", []).append(name)
+                            _materialize(root, prefix, "HEAD")
+                            continue
                 elif not local_sha:
                     git(root, "update-ref", f"refs/heads/{branch}", remote_sha, timeout=10)
         merged = git(root, "merge-base", "--is-ancestor", branch, "HEAD", timeout=20).returncode == 0

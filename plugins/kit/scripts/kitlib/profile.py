@@ -147,7 +147,7 @@ def write(root: Path, answers: dict) -> dict:
         if f.get("agents"):
             (folder / "AGENTS.md").write_text(f["agents"].strip() + "\n", encoding="utf-8")
             (folder / "CLAUDE.md").write_text("@AGENTS.md\n", encoding="utf-8")
-    profile = {"name": name, "subscriptions": answers.get("subscriptions") or [],
+    profile = {"name": name, "plan": answers.get("plan", ""), "subscriptions": answers.get("subscriptions") or [],
                "helper": {"name": helper.get("name", "")}, "skills": [s["name"] for s in answers.get("skills", [])],
                "first_exploration": answers.get("first_exploration", "")}
     (root / ".kit").mkdir(exist_ok=True)

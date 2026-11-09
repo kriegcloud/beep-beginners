@@ -3,20 +3,21 @@ name: onboarding
 description: >
   Set up this computer from scratch with the beep-beginners kit: apps, sign-ins,
   password manager, a private workspace on GitHub shaped by the user's own
-  Claude memories, a caretaker that tidies up while they're away, and a help
-  line. Use when the user says "set me up", "set up my computer", "start
+  Claude memories, security notices on, and a help line, ending on the first
+  exploration. Use when the user says "set me up", "set up my computer", "start
   onboarding", "keep setting me up", "finish setting me up", or pastes the setup
   sentence that mentions beep-beginners. Resumes where it left off.
 ---
 
 # Onboarding
 
-You take the user from a bare machine to a working setup. They never type a
-command. Their only jobs are typing passwords, approving two-factor prompts,
-pasting their Claude memories, clicking Add in the Chrome Web Store, clicking
-Install once on GitHub, and saying Yes to one Windows permission prompt. You
-do everything else, and you end by starting on the first thing they want to
-figure out.
+You take the user from a bare machine to a working setup in one sitting
+(D68). They never type a command. Their only jobs are typing passwords,
+approving two-factor prompts, pasting their Claude memories, clicking Add in
+the Chrome Web Store, and saying Yes to one Windows permission prompt. You do
+everything else, and you end by starting on the first thing they want to
+figure out. The cloud pieces (the caretaker) are a second sitting: the
+`caretaker-setup` chore proposes them at a later session start.
 
 ## Rules for every step
 
@@ -117,6 +118,8 @@ Ask one AskUserQuestion round, recommended answer first:
 - What should I call you? (`answer name`)
 - Which AI subscriptions do you pay for? Claude, ChatGPT, Grok, Gemini.
   This is multi-select. (`answer subscriptions --list claude,chatgpt`)
+- Which Claude plan is it? Pro, Max 5x, Max 20x, or not sure. No machine can
+  tell, and the caretaker needs Max (D66). (`answer claude_plan max5|max20|pro|unsure`)
 - Which accounts do you already have? GitHub, 1Password, Bitwarden, Tailscale,
   Microsoft (OneDrive). This is multi-select. Keep every option even when
   detection found no app: a Bitwarden web-vault user has nothing installed.
@@ -208,8 +211,11 @@ user's OK. Each may ask for the computer password.
 
 ### 8. signin-github
 
-1. Run `gh auth login --web --hostname github.com --git-protocol https --scopes admin:public_key,workflow`.
-   `workflow` is needed to push the workspace's checks. Test runs add the
+1. Run `gh auth login --web --hostname github.com --git-protocol https --scopes admin:public_key,workflow,repo`.
+   `workflow` is needed to push the workspace's checks; `repo` covers the
+   `kit/review` commit status (D70: GitHub lets only GitHub Apps create check
+   runs, so the kit's review verdict is a commit status, which this token may
+   post). One login, every scope (D39). Test runs add the
    scopes in `BEEP_BEGINNERS_GH_EXTRA_SCOPES` (comma-separated), such as
    `delete_repo`, so the test reset can remove its repos.
    It prints a one-time code and opens github.com/login/device. If the user
@@ -315,61 +321,23 @@ Save the answer: `answer workspace_parent "<path>"`.
    whether they have a Microsoft account. If they do, open OneDrive so they
    can sign in and turn on Documents backup. If not, skip with a note.
 
-### 15. github-app (one Install click)
+### 15. The cloud pieces come later (D68)
 
-The caretaker runs in Claude's cloud and needs two things on the user's
-accounts. Say: "Claude's cloud helper needs permission to see your workspace
-on GitHub. GitHub will show an Install button; click it, choose your account,
-and pick only the workspace repository."
+Nothing to do in this sitting. The Claude GitHub App, the claude.ai cloud
+setup and the three caretaker tasks are the `caretaker-setup` skill, which
+the kit proposes at the start of a later session ("Ten minutes to set up your
+caretaker?"). Until then, session start does the upkeep: kit updates,
+finished work that passed its checks, the index, the backup check. Mention
+this in one sentence when you reach the welcome.
 
-1. Open https://github.com/apps/claude in Chrome. The user clicks Install,
-   picks their account, selects "Only select repositories" and the workspace.
-2. Open https://claude.ai/code in Chrome, signed in as the same Claude
-   account as this app. If it shows a GitHub connect step or a first
-   environment ("Default"), tell the user to accept it; that is the one-time
-   cloud setup. If it opens straight to the session list, it's already done.
-3. Check with `gh api repos/<owner>/<repo>/installation` (REST, as the user):
-   a 200 means the app is installed on the workspace; a 404 means not yet.
-   Save `answer github_app true`.
-
-### 16. caretaker (two cloud tasks)
-
-Say: "I'm setting up the caretaker: a morning check that runs on your Claude
-account while you're away, and a second one that runs whenever finished work
-is waiting to be checked. It uses a little of your Claude subscription each
-day."
-
-1. Run `workspace.py cloud-ready` for the workspace URL and the UTC cron for
-   7:07 local time.
-2. Run `kit.py caretaker install --workspace <url> --environment <env id> --cron-utc "<cron>"`.
-   The environment id is the account's Default cloud environment; the
-   `schedule` skill lists the environments when you invoke it. The output
-   holds two routine bodies (`sweep`, `pr_opened`) and the webhook spec.
-3. Invoke the `schedule` skill. Create `sweep` with the schedule tool's
-   create action using the body as given (model `claude-opus-5-5`, effort
-   medium, no connectors). Then create `pr_opened` the same way. Then call
-   `create_webhook_trigger` with the webhook spec and `pr_opened`'s id, for
-   `pull_request.opened` on the workspace repository. The routine route
-   (`--route plugin|fetch|repo`) is whichever `docs/DECISIONS.md` D45's
-   latest amendment names; default `fetch`.
-4. Save the two routine ids: `answer caretaker_sweep_id <id>`,
-   `answer caretaker_pr_id <id>`. Never show tokens; there are none to show.
-5. Tell the user in one sentence what will happen: "Every morning around
-   seven, the caretaker checks your workspace. Anything it can't decide alone
-   shows up as a question when you next open Claude here."
-
-If the schedule tool isn't available in this session (no cloud access on the
-account), skip with a note and tell the user the caretaker needs a Claude Pro
-or Max plan; the workspace still works, and session start covers the chores.
-
-### 17. signin-tailscale
+### 16. signin-tailscale
 
 Run `tailscale up --unattended` (Windows: the full path
 `C:\Program Files\Tailscale\tailscale.exe`). It prints a login URL. Open it,
 and tell the user it's the Tailscale sign-in page. They can sign up with
 their GitHub account. Check with the `tailscale` verify in `tools.yaml`.
 
-### 18. remote-help
+### 17. remote-help
 
 1. The help line was set up in step 7: SSH only from Tailscale addresses,
    only the helper's keys, password logins off. Confirm with
@@ -381,7 +349,7 @@ their GitHub account. Check with the `tailscale` verify in `tools.yaml`.
 3. Tell the user, in one or two sentences, that the helper connects only when
    asked, and that "stop <helper>'s access" turns it off.
 
-### 19. other-ai
+### 18. other-ai
 
 Only for subscriptions other than Claude. The tools were installed in step 6.
 For each one, open its sign-in (`codex login`, `grok` first run, `gemini`
@@ -389,7 +357,7 @@ first run) and wait for the user. CLIProxyAPI runs at logon as a scheduled
 task. Its own sign-in for each vendor uses the same accounts. The workspace
 `AGENTS.md` already explains when agents route work through it.
 
-### 20. verify
+### 19. verify
 
 Run `tools.py verify --evidence "<workspace>/docs/setup-check.json"`. Every
 row should be `ok: true`. Fix what you can and run it again. Report what's
@@ -397,7 +365,7 @@ left in one short list. Save the evidence file with
 `kit land --message "Record the setup check"` from the workspace, then
 `kit sync --at end` so it is backed up.
 
-### 21. first-exploration (the hand-off, D57)
+### 20. first-exploration (the hand-off, D57)
 
 Write a short welcome (about 120 words, through `unslop`) and save it as
 `docs/WELCOME.md` in the workspace. It covers: to start work, open the Claude
@@ -405,8 +373,11 @@ app, choose Code, and pick the workspace folder (give the path); things to
 say ("I want to explore ...", "build me ...", "what needs me?", "teach me
 what you just did", "I need help", "stop <helper>'s access"); the four
 commands to type (`/grill-me`, `/teach`, `/handoff`, `/wait-what`); that
-everything saves to GitHub by itself and the caretaker checks it each
-morning, using a little of their Claude subscription.
+everything saves to GitHub by itself; and one line on the caretaker: on Max,
+that it can be set up next time in ten minutes, runs on their Claude account
+while they're away, and can be paused by saying "pause my caretaker"; on Pro,
+that the kit does that upkeep whenever they open Claude here, and what
+upgrading unlocks.
 
 Then don't stop there. Say: "Let's start on the thing you said you wanted to
 figure out: <first_exploration>." Invoke the `explore` skill with

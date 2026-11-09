@@ -89,12 +89,20 @@ def find_pr_for_branch(slug: str, branch: str) -> dict | None:
     return summarize_pr(prs[0]) if prs else None
 
 
-def open_pr(slug: str, branch: str, title: str, body: str, base: str = "main") -> dict:
+def open_pr(slug: str, branch: str, title: str, body: str, base: str = "main", review: dict | None = None) -> dict:
+    """Open the PR (or find the open one) and, when a review record is given,
+    post the kit/review status on its head SHA (D70)."""
     existing = find_pr_for_branch(slug, branch)
     if existing:
-        return {**existing, "opened": False}
-    pr = api(f"repos/{slug}/pulls", "POST", raw={"title": title, "head": branch, "base": base, "body": body})
-    return {**summarize_pr(pr), "opened": True}
+        result = {**existing, "opened": False}
+    else:
+        pr = api(f"repos/{slug}/pulls", "POST", raw={"title": title, "head": branch, "base": base, "body": body})
+        result = {**summarize_pr(pr), "opened": True}
+    if review:
+        waived = review.get("waived", 0)
+        desc = f"reviewed: {review.get('findings', 0)} finding(s), {review.get('fixed', 0)} fixed, {waived} waived"
+        result["review_status"] = post_review_status(slug, result["sha"], "success", desc)
+    return result
 
 
 def check_runs(slug: str, sha: str) -> list[dict]:
@@ -106,12 +114,36 @@ def check_runs(slug: str, sha: str) -> list[dict]:
     return runs
 
 
-def merge_gate(pr: dict, runs: list[dict]) -> dict:
+REVIEW_CONTEXT = "kit/review"
+
+
+def commit_statuses(slug: str, sha: str) -> list[dict]:
+    """Commit statuses on the head SHA. `kit/review` is one of these (D70):
+    GitHub lets only GitHub Apps create check runs, so the review verdict is
+    a commit status, which a user's token may post with the repo scope."""
+    data = api(f"repos/{slug}/commits/{sha}/status") or {}
+    return [{"context": s["context"], "state": s["state"], "description": s.get("description", "")}
+            for s in data.get("statuses", [])]
+
+
+def post_review_status(slug: str, sha: str, state: str, description: str, target_url: str = "") -> dict:
+    if state not in ("success", "failure", "pending", "error"):
+        raise KitError("state must be success, failure, pending or error")
+    body = {"state": state, "context": REVIEW_CONTEXT, "description": description[:140]}
+    if target_url:
+        body["target_url"] = target_url
+    result = api(f"repos/{slug}/statuses/{sha}", "POST", raw=body)
+    return {"sha": sha, "context": REVIEW_CONTEXT, "state": (result or {}).get("state", state)}
+
+
+def merge_gate(pr: dict, runs: list[dict], statuses: list[dict] | None = None) -> dict:
     """Decide whether a PR may merge. Pure: no network.
 
-    Rules (D49): the PR is open, not a draft, GitHub reports it mergeable;
+    Rules (D49, D70): the PR is open, not a draft, GitHub reports it mergeable;
     at least one check run exists; every run is complete and green; a run
-    named gitleaks exists and is green."""
+    named gitleaks exists and is green; and unless a bot opened the PR, a
+    `kit/review` commit status on the head SHA is success."""
+    statuses = statuses or []
     reasons: list[str] = []
     if pr.get("state") != "open":
         reasons.append(f"the pull request is {pr.get('state')}")
@@ -132,13 +164,22 @@ def merge_gate(pr: dict, runs: list[dict]) -> dict:
         reasons.append("the gitleaks check didn't run on this change")
     elif leaks and any((r.get("conclusion") or "") not in GREEN or r["status"] != "completed" for r in leaks):
         reasons.append("the gitleaks check is not green")
-    return {"ok": not reasons, "reasons": reasons, "pending": bool(pending), "red": red}
+    review_missing = False
+    if pr.get("author") not in BOT_LOGINS:
+        review = [st for st in statuses if st["context"] == REVIEW_CONTEXT]
+        if not review:
+            review_missing = True
+            reasons.append("no kit/review verdict on this change yet (the desktop session reviews before it opens the pull request)")
+        elif review[-1]["state"] != "success":
+            reasons.append(f"kit/review is {review[-1]['state']}: {review[-1].get('description', '')}")
+    return {"ok": not reasons, "reasons": reasons, "pending": bool(pending), "red": red, "review_missing": review_missing}
 
 
 def merge_pr(slug: str, number: int, method: str = "squash") -> dict:
     pr = summarize_pr(get_pr(slug, number))
     runs = check_runs(slug, pr["sha"])
-    gate = merge_gate(pr, runs)
+    statuses = commit_statuses(slug, pr["sha"])
+    gate = merge_gate(pr, runs, statuses)
     if not gate["ok"]:
         return {"merged": False, "number": number, "title": pr["title"], "gate": gate, "runs": runs}
     result = api(f"repos/{slug}/pulls/{number}/merge", "PUT",
@@ -154,7 +195,7 @@ def watch_pr(slug: str, number: int, max_seconds: int = 1200, interval: int = 30
     while True:
         pr = summarize_pr(get_pr(slug, number))
         runs = check_runs(slug, pr["sha"])
-        gate = merge_gate(pr, runs)
+        gate = merge_gate(pr, runs, commit_statuses(slug, pr["sha"]))
         if runs and not gate["pending"]:
             return {"number": number, "done": True, "gate": gate, "runs": runs, "sha": pr["sha"]}
         if time.monotonic() >= deadline:

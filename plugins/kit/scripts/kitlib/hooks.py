@@ -93,8 +93,12 @@ def session_start(root: Path | None) -> int:
     except (KitError, OSError):
         pass
     try:
-        ran = chores.run_due(root, "desktop", max_seconds=120, limit=1)
-        notes += ran["lines"]
+        # Every due desktop chore that fits in the budget (migrate first); at most three lines said aloud.
+        ran = chores.run_due(root, "desktop", max_seconds=120, limit=None)
+        notes += ran["lines"][:3]
+        if any(r.get("agent_action") for r in ran["ran"]):
+            actions = ", ".join(str(r["agent_action"]) for r in ran["ran"] if r.get("agent_action"))
+            context.append(f"A chore asks the agent to act: {actions}. Do it once this session, after greeting the user.")
         if any(r.get("question") for r in ran["ran"]):
             context.append("A chore asked a keep/park/drop question; put it to the user once and act only on a yes.")
     except (KitError, OSError) as exc:

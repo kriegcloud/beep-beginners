@@ -100,14 +100,16 @@ def due(root: Path, where: str) -> list[dict]:
         overdue = (age if age is not None else 10_000) - int(c["cadence"])
         if overdue >= 0:
             found.append({**c, "last": last, "overdue_days": overdue})
-    found.sort(key=lambda c: (-c["overdue_days"], c["id"]))
+    found.sort(key=lambda c: (c["id"] != "migrate", -c["overdue_days"], c["id"]))
     return found
 
 
 # ---------------------------------------------------------------- handlers
 
 def _chore_index(root: Path, **_) -> dict:
+    from . import okf
     counts = packets.write_index(root)
+    counts.update(okf.write_indexes(root))
     return {"ok": True, "line": "Refreshed the index pages.", **counts}
 
 
@@ -183,7 +185,76 @@ def _chore_tools(root: Path, **_) -> dict:
     return {"ok": out.returncode == 0, "line": "Checked the apps that had problems last time." if out.returncode == 0 else ""}
 
 
+def _chore_migrate(root: Path, **_) -> dict:
+    from . import migrate
+    result = migrate.run(root)
+    n = len(result["ran"])
+    return {"ok": True, "ran": result["ran"], "line": f"Applied {n} kit update{'s' if n != 1 else ''} to your workspace." if n else ""}
+
+
+def _chore_caretaker_setup(root: Path, **_) -> dict:
+    from . import caretaker
+    state = caretaker.load_state(root)
+    if state.get("routines"):
+        return {"ok": True, "line": "", "done": True}
+    plan = state.get("plan") or read_json(root / ".kit" / "profile.json", {}).get("plan")
+    if plan and not str(plan).lower().startswith("max"):
+        return {"ok": True, "line": "", "skipped": "Pro plan: the caretaker needs Max (D66); session-start chores cover upkeep"}
+    return {"ok": True, "question": True, "agent_action": "caretaker-setup skill",
+            "line": "Ten minutes to set up your caretaker? It runs on your Claude account while you're away and tidies up."}
+
+
+def _chore_merge_green(root: Path, **_) -> dict:
+    """D66: a desktop session merges green pull requests so Pro users get the
+    same result a day later; harmless alongside the caretaker."""
+    from . import github
+    try:
+        slug = github.repo_slug(root)
+        merged = []
+        for pr in github.list_prs(slug):
+            gate = github.merge_gate(pr, github.check_runs(slug, pr["sha"]), github.commit_statuses(slug, pr["sha"]))
+            if gate["ok"]:
+                result = github.merge_pr(slug, pr["number"])
+                if result["merged"]:
+                    merged.append(pr["number"])
+    except KitError as exc:
+        return {"ok": False, "line": "", "error": str(exc)}
+    n = len(merged)
+    return {"ok": True, "merged": merged, "line": f"{n} piece{'s' if n != 1 else ''} of finished work passed the checks and went into the main copy." if n else ""}
+
+
+def _chore_caretaker_health(root: Path, **_) -> dict:
+    from . import caretaker
+    state = caretaker.load_state(root)
+    if not state.get("routines"):
+        return {"ok": True, "line": ""}
+    return {"ok": True, "agent_action": "schedule list_runs",
+            "line": "Check the caretaker's last run with the schedule tool; if it was rejected at the usage limit, add one NEEDS-YOU line."}
+
+
+def _chore_okf_validate(root: Path, **_) -> dict:
+    from . import okf
+    result = okf.validate(root / "docs") if (root / "docs").exists() else {"ok": True, "errors": []}
+    if result["ok"]:
+        return {"ok": True, "line": "", "validate": result}
+    return {"ok": False, "validate": result,
+            "line": f"{len(result['errors'])} page{'s' if len(result['errors']) != 1 else ''} in docs need fixing (see the validate output)."}
+
+
+def _chore_docs_promote(root: Path, **_) -> dict:
+    from . import okf
+    promoted = okf.promote_drafts(root)
+    n = len(promoted)
+    return {"ok": True, "promoted": promoted, "line": f"{n} note{'s' if n != 1 else ''} from earlier sessions {'are' if n != 1 else 'is'} now settled." if n else ""}
+
+
 HANDLERS = {
+    "migrate": _chore_migrate,
+    "caretaker-setup": _chore_caretaker_setup,
+    "merge-green": _chore_merge_green,
+    "caretaker-health": _chore_caretaker_health,
+    "okf-validate": _chore_okf_validate,
+    "docs-promote": _chore_docs_promote,
     "index": _chore_index,
     "stale-explorations": lambda root, **kw: _chore_stale(root, "exploration", 30),
     "stalled-goals": lambda root, **kw: _chore_stale(root, "goal", 30),

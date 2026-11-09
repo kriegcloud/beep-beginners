@@ -50,9 +50,14 @@ their output reaches the user only through `unslop` and an explain brief:
 - Each change: `to-spec` (the spec goes in the goal packet's `specs/`), then
   `implement-spec`.
 - `tdd` while building; the project's tests must pass before landing.
-- `code-review` before the branch lands; fix the findings, or write the
-  waiver and reason into the packet.
-- `retro` when the goal closes.
+- `code-review` before the branch lands (D70). Fix what you can. For each
+  finding left as it is, write one line with the reason into a waivers file,
+  then record the review in the goal packet:
+  `kit review record --goal <slug> --project <name> --findings N --fixed N --waivers <file>`
+  (or `--no-waivers`). At session end the kit opens the pull request and
+  posts the `kit/review` verdict on it; without that verdict the caretaker
+  won't merge. If you push more commits after the review, review again.
+- `retro` when the goal closes (see the `goal` skill).
 
 Save often with `kit land`. Nothing else commits. Checks run on GitHub for
 the folder; a red check becomes a NEEDS-YOU item by the next morning, and

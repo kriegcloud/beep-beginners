@@ -116,13 +116,17 @@ def create(args: argparse.Namespace) -> dict:
         raise SystemExit(json.dumps({"error": f"{target} already has files in it"}))
     shutil.copytree(TEMPLATE, target, dirs_exist_ok=True)
 
+    settings_path = target / ".claude" / "settings.json"
+    settings = json.loads(settings_path.read_text(encoding="utf-8"))
     source = marketplace_source()
     if source:
-        settings_path = target / ".claude" / "settings.json"
-        settings = json.loads(settings_path.read_text(encoding="utf-8"))
         settings["extraKnownMarketplaces"]["beep-beginners"]["source"] = (
             {"source": "directory", "path": source} if os.path.isdir(source) else {"source": "github", "repo": source})
-        settings_path.write_text(json.dumps(settings, indent=2) + "\n", encoding="utf-8")
+    else:
+        # D72: workspaces track the kit's `stable` branch; the test VM and the
+        # maintainer's own workspace set BEEP_BEGINNERS_KIT_REF=main.
+        settings["extraKnownMarketplaces"]["beep-beginners"]["source"]["ref"] = os.environ.get("BEEP_BEGINNERS_KIT_REF", "stable")
+    settings_path.write_text(json.dumps(settings, indent=2) + "\n", encoding="utf-8")
 
     profile: dict = {}
     if args.answers:

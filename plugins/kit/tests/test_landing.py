@@ -56,7 +56,9 @@ def test_hub_only_lands_on_main(repos):
     ws, _ = repos
     write(ws, "docs/note.md", "hello\n")
     result = landing.land(ws, "Add a note")
-    assert result["landed"] and result["hub"] == ["docs/note.md"] and not result["projects"]
+    assert result["landed"] and "docs/note.md" in result["hub"] and not result["projects"]
+    # A docs change also lands the OKF log and index the kit keeps (D60).
+    assert {"docs/log.md", "docs/index.md"} <= set(result["hub"])
     assert sh("git", "log", "-1", "--format=%s", cwd=ws) == "Add a note"
     assert sh("git", "status", "--porcelain", cwd=ws) == ""
 
@@ -181,6 +183,59 @@ def test_sync_start_picks_up_caretaker_commit_on_open_branch(repos, tmp_path):
     (ws / "projects/app/a.py").write_text("3\n")
     landing.land(ws, "more")
     assert sh("git", "log", "--format=%s", "goal/g", cwd=ws).splitlines()[:3] == ["more", "Fix", "work"]
+
+
+def _caretaker_clone(tmp_path, origin):
+    other = tmp_path / "other"
+    sh("git", "clone", "-q", str(origin), str(other), cwd=tmp_path)
+    sh("git", "config", "user.name", "c", cwd=other); sh("git", "config", "user.email", "c@x", cwd=other)
+    return other
+
+
+def test_sync_merges_diverged_branch_when_lines_differ(repos, tmp_path):
+    ws, origin = repos
+    write(ws, "projects/app/.kit.json", '{"goal": "g"}\n')
+    write(ws, "projects/app/a.py", "line1\nline2\nline3\n")
+    write(ws, "projects/app/b.py", "b\n")
+    landing.land(ws, "work")
+    landing.sync(ws, "end", open_pr=None)
+    other = _caretaker_clone(tmp_path, origin)
+    sh("git", "checkout", "-q", "goal/g", cwd=other)
+    (other / "projects/app/b.py").write_text("b fixed by caretaker\n")
+    sh("git", "commit", "-q", "-am", "Fix b", cwd=other)
+    sh("git", "push", "-q", "origin", "goal/g", cwd=other)
+    # Meanwhile this computer edited a.py and landed it (a session that ended before the next sync).
+    write(ws, "projects/app/a.py", "line1\nline2 edited here\nline3\n")
+    landing.land(ws, "local edit")
+    report = landing.sync(ws, "start", open_pr=None)
+    assert any("brought together" in n for n in report["notes"])
+    assert (ws / "projects/app/a.py").read_text() == "line1\nline2 edited here\nline3\n"
+    assert (ws / "projects/app/b.py").read_text() == "b fixed by caretaker\n"
+    # The branch is still open, so the folder sits in the tree as the branch's version, fully landed.
+    assert landing.working_tree_of_prefix(ws, "projects/app") == landing.tree_of_prefix(ws, "goal/g", "projects/app")
+    assert len(sh("git", "rev-list", "--parents", "-1", "goal/g", cwd=ws).split()) == 3  # a merge commit
+
+
+def test_sync_conflict_becomes_needs_you_item(repos, tmp_path):
+    ws, origin = repos
+    write(ws, "projects/app/.kit.json", '{"goal": "g"}\n')
+    write(ws, "projects/app/a.py", "same line\n")
+    landing.land(ws, "work")
+    landing.sync(ws, "end", open_pr=None)
+    other = _caretaker_clone(tmp_path, origin)
+    sh("git", "checkout", "-q", "goal/g", cwd=other)
+    (other / "projects/app/a.py").write_text("caretaker version\n")
+    sh("git", "commit", "-q", "-am", "Fix a", cwd=other)
+    sh("git", "push", "-q", "origin", "goal/g", cwd=other)
+    write(ws, "projects/app/a.py", "my version\n")
+    landing.land(ws, "local edit")
+    report = landing.sync(ws, "start", open_pr=None)
+    assert report.get("conflicts") == ["app"]
+    needs = (ws / "NEEDS-YOU.md").read_text()
+    assert "Two versions of app need your pick" in needs and "rebase" not in needs.lower()
+    # Nothing was lost: both versions still exist as commits.
+    assert sh("git", "show", "goal/g:projects/app/a.py", cwd=ws) == "my version"
+    assert sh("git", "show", "origin/goal/g:projects/app/a.py", cwd=ws) == "caretaker version"
 
 
 def test_land_refuses_off_main(repos):

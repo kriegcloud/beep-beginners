@@ -7,6 +7,10 @@
 plugins/
   kit/          the kit: everything that shares one script
     scripts/kit.py              the command layer (D51); kitlib/ holds its modules
+                                (landing, github, packets, project, chores, needs_you, explain,
+                                profile, okf, retro, feedback, migrate, caretaker, hooks)
+    caretaker/{sweep,pr,garden}.md   the three runner-neutral prompts (D67)
+    migrations/NNNN-*.py        idempotent `apply(root)` steps `kit migrate` runs once (D72)
     scripts/{detect,tools,state,workspace,pick_folder}.py   onboarding's scripts
     hooks/hooks.json, rules.py  PreToolUse guard rules, SessionStart/SessionEnd via kit.py hook
     skills/                     onboarding, explore, goal, project, explain, kit-grill, caretaker
@@ -64,6 +68,7 @@ skill, a hook, the script, `chores.yaml`), not the template.
 uv run --script plugins/kit/tests/test_rules.py      # guard rules
 uv run --script plugins/kit/tests/test_landing.py    # kit land / kit sync against real git repos
 uv run --script plugins/kit/tests/test_kit.py        # packets, projects, chores, needs-you, explain, profile, gate, manifest
+uv run --script plugins/kit/tests/test_okf.py        # docs/ as OKF, trust and staleness, retros, feedback, migrations
 uv run --script plugins/kit/tests/test_elevated_batch.py   # needs pwsh
 claude plugin validate .
 tests/vm/run.sh --help        # Windows proof, see tests/vm/README.md
@@ -71,3 +76,19 @@ tests/vm/run.sh --help        # Windows proof, see tests/vm/README.md
 
 `.github/workflows/tests.yml` runs the same, plus a smoke run of `kit` on a
 fresh template and a build of both project templates.
+
+## Releases (D72)
+
+Workspaces track the `stable` branch of this repository (the template's
+marketplace source has `ref: stable`); Benjamin's own workspace and the test
+VM track `main`. A release is a fast-forward of `stable` after the kit's CI is
+green on `main` and the VM proof passed, with a tag:
+
+```sh
+git fetch origin && git push origin main:stable && git tag -a v3.<n>.0 -m "<one line>" && git push origin v3.<n>.0
+```
+
+A release that changes what a workspace holds ships a migration under
+`plugins/kit/migrations/NNNN-<name>.py` with an idempotent `apply(root)`;
+`kit migrate` runs pending ones as the first session-start chore and logs them
+in `.kit/migrations.json`. Never edit a migration that has shipped; add one.

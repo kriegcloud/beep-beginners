@@ -1,3 +1,12 @@
+---
+type: agent-config
+title: Domain docs
+description: "How the engineering skills read this workspace's glossary and decisions."
+generated:
+  by: process:kit
+  at: "2026-11-08T00:00:00Z"
+status: stable
+---
 # Domain docs
 
 How the engineering skills read this workspace's domain documentation.

@@ -1,3 +1,12 @@
+---
+type: agent-config
+title: Issue tracker: local markdown inside goal packets
+description: "Where specs, tickets and wayfinder maps live."
+generated:
+  by: process:kit
+  at: "2026-11-08T00:00:00Z"
+status: stable
+---
 # Issue tracker: local markdown inside goal packets
 
 Specs, tickets and wayfinder maps for this workspace live as markdown files
