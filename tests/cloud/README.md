@@ -24,9 +24,17 @@ deleted afterwards.
   America/New_York), so routines created on it would be rejected until then:
   D66 observed before the caretaker even existed. The cloud proof waits for
   the reset.
-- Adding the operator's GitHub user as a collaborator on the test repo was
-  refused by the proof session's permission classifier; the operator does it
-  by hand on github.com or in the VM as the test account.
+- Adding the operator's GitHub user as a collaborator on the test repo is a
+  documented manual proof step, like the Hello PIN and the Balanced preset in
+  D41: the proof session's permission classifier refused it, Benjamin ran
+  `gh api -X PUT repos/benjamintoppold-ai/workspace/collaborators/kriegcloud -f permission=push`
+  himself in the VM's PowerShell as the test account on 2026-11-09, and the
+  invitation was accepted as kriegcloud from the workstation. The kit never
+  automates this: a real friend's caretaker runs on their own account against
+  their own repository, so no second GitHub identity is involved.
+- The test account's `gh` token is readable only in the VM's desktop logon
+  session (Credential Manager); over the harness SSH session every `gh` call
+  gets 401. Run proof scripts through `run.sh vmi`.
 - Dependabot closed its first PR on the test repo as superseded when the kit's
   CI fix pinned the same commit, so the Dependabot proof uses an older ruff
   pin in `projects/sales-import`; the daily run proposes the bump, or the
