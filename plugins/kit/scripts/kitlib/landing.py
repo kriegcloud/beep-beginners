@@ -74,6 +74,27 @@ def current_branch(root: Path) -> str:
     return git(root, "rev-parse", "--abbrev-ref", "HEAD", timeout=10).stdout.strip()
 
 
+def ensure_main(root: Path) -> str:
+    """Cloud sandboxes clone the workspace at a commit (detached HEAD, seen
+    2026-11-09). When HEAD is detached at main's commit, check main out so
+    land and sync work as on the desktop. Returns the branch we're on."""
+    branch = current_branch(root)
+    if branch != "HEAD":
+        return branch
+    head = git(root, "rev-parse", "HEAD", timeout=10).stdout.strip()
+    local_main = git(root, "rev-parse", "--verify", "--quiet", "refs/heads/main", timeout=10).stdout.strip()
+    remote_main = git(root, "rev-parse", "--verify", "--quiet", "refs/remotes/origin/main", timeout=10).stdout.strip()
+    if local_main == head or (not local_main and remote_main in (head, "")):
+        if local_main:
+            git(root, "checkout", "-q", "main", timeout=30, check=True)
+        else:
+            git(root, "checkout", "-q", "-b", "main", timeout=30, check=True)
+            if remote_main:
+                git(root, "branch", "-q", "--set-upstream-to=origin/main", "main", timeout=10)
+        return "main"
+    return branch
+
+
 def project_meta(root: Path, name: str) -> dict:
     return read_json(root / PROJECTS / name / ".kit.json", {})
 
@@ -173,6 +194,14 @@ def _commit_project(root: Path, name: str, branch: str, message: str) -> dict:
         git(root, "update-ref", f"refs/heads/{branch}", remote.stdout.strip(), timeout=10, check=True)
         exists = True
     base = branch if exists else "HEAD"
+    if exists and _already_on_main(root, branch, prefix):
+        # kit pr merge squashes, so a merged branch is never main's ancestor.
+        # Its content is on main, though: start the next change from main
+        # (origin's copy when it is ahead, since sync lands before it pulls).
+        git(root, "branch", "-D", "-q", branch, timeout=20)
+        exists = False
+        remote = git(root, "rev-parse", "--verify", "--quiet", "refs/remotes/origin/main", timeout=10).stdout.strip()
+        base = "origin/main" if remote and git(root, "merge-base", "--is-ancestor", "HEAD", "origin/main", timeout=20).returncode == 0 else "HEAD"
     with tempfile.TemporaryDirectory() as tmp:
         env = {**GIT_ENV, "GIT_INDEX_FILE": str(Path(tmp) / "index")}
         git(root, "read-tree", base, env=env, timeout=30, check=True)
@@ -194,8 +223,21 @@ def _commit_project(root: Path, name: str, branch: str, message: str) -> dict:
 
 # ---------------------------------------------------------------- land
 
+def _already_on_main(root: Path, branch: str, prefix: str) -> bool:
+    """True when the branch's project tree equals main's and main carries at
+    least that content: the pull request was merged (by squash, so the
+    ancestor test fails) and nothing new was landed since."""
+    branch_tree = tree_of_prefix(root, branch, prefix)
+    remote = git(root, "rev-parse", "--verify", "--quiet", "refs/remotes/origin/main", timeout=10).stdout.strip()
+    main_ref = "origin/main" if remote else "HEAD"
+    main_tree = tree_of_prefix(root, main_ref, prefix)
+    if not branch_tree or branch_tree != main_tree:
+        return False
+    return git(root, "merge-base", "--is-ancestor", branch, main_ref, timeout=20).returncode != 0
+
+
 def land(root: Path, message: str | None = None, allow_secrets: bool = False) -> dict:
-    branch = current_branch(root)
+    branch = ensure_main(root)
     if branch != "main":
         raise KitError(f"the workspace is on '{branch}', not main; landing only works from main")
     message = (message or DEFAULT_MESSAGE).strip()
@@ -293,19 +335,10 @@ def sync(root: Path, at: str = "start", open_pr=None) -> dict:
     it comes from the pr module so this one stays free of GitHub calls.
     """
     report: dict = {"at": at, "notes": [], "pushed": [], "prs": []}
-    if current_branch(root) != "main":
+    if ensure_main(root) != "main":
         report["notes"].append("not on main; sync skipped")
         return report
     state = landed_state(root)
-
-    # 1. Unsaved project edits from a session that ended badly: land them first.
-    for name in sorted(state.get("projects", {})):
-        prefix = f"{PROJECTS}/{name}"
-        working = working_tree_of_prefix(root, prefix)
-        if working and working != state["projects"][name].get("tree"):
-            report["notes"].append(f"saved unfinished work in {name}")
-            land(root, "Save unfinished work from an earlier session")
-            state = landed_state(root)
 
     online = has_origin(root)
     if online:
@@ -313,6 +346,16 @@ def sync(root: Path, at: str = "start", open_pr=None) -> dict:
         if fetch.returncode != 0:
             report["notes"].append("could not reach GitHub; working offline")
             online = False
+
+    # 1. Unsaved project edits from a session that ended badly: land them first
+    #    (after the fetch, so a squash-merged branch is recognized as landed).
+    for name in sorted(state.get("projects", {})):
+        prefix = f"{PROJECTS}/{name}"
+        working = working_tree_of_prefix(root, prefix)
+        if working and working != state["projects"][name].get("tree"):
+            report["notes"].append(f"saved unfinished work in {name}")
+            land(root, "Save unfinished work from an earlier session")
+            state = landed_state(root)
 
     # 2. Put each project folder back to main's version so main can move.
     for name in sorted(state.get("projects", {})):
@@ -348,10 +391,11 @@ def sync(root: Path, at: str = "start", open_pr=None) -> dict:
                             continue
                 elif not local_sha:
                     git(root, "update-ref", f"refs/heads/{branch}", remote_sha, timeout=10)
-        merged = git(root, "merge-base", "--is-ancestor", branch, "HEAD", timeout=20).returncode == 0
+        merged = (git(root, "merge-base", "--is-ancestor", branch, "HEAD", timeout=20).returncode == 0
+                  or tree_of_prefix(root, branch, prefix) == tree_of_prefix(root, "HEAD", prefix))
         if merged:
             report["notes"].append(f"{name} landed on main")
-            git(root, "branch", "-d", "-q", branch, timeout=20)
+            git(root, "branch", "-D", "-q", branch, timeout=20)
             del state["projects"][name]
             continue
         _materialize(root, prefix, branch)

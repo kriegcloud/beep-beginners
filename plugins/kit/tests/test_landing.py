@@ -238,6 +238,41 @@ def test_sync_conflict_becomes_needs_you_item(repos, tmp_path):
     assert sh("git", "show", "origin/goal/g:projects/app/a.py", cwd=ws) == "caretaker version"
 
 
+def test_sync_after_squash_merge_then_new_edit_starts_from_main(repos, tmp_path):
+    """kit pr merge squashes: the merged branch is never main's ancestor."""
+    ws, origin = repos
+    write(ws, "projects/app/.kit.json", '{"goal": "g"}\n')
+    write(ws, "projects/app/a.py", "1\n")
+    landing.land(ws, "work")
+    landing.sync(ws, "end", open_pr=None)
+    other = _caretaker_clone(tmp_path, origin)
+    sh("git", "checkout", "-q", "main", cwd=other)
+    sh("git", "merge", "-q", "--squash", "origin/goal/g", cwd=other)
+    sh("git", "commit", "-q", "-m", "Update app (#1)", cwd=other)
+    sh("git", "push", "-q", "origin", "main", ":goal/g", cwd=other)
+    # Session two: an unsaved edit sits in the tree before sync (the 2026-11-09 cloud case).
+    write(ws, "projects/app/a.py", "2\n")
+    report = landing.sync(ws, "start", open_pr=None)
+    assert "Update app (#1)" in sh("git", "log", "--format=%s", "-3", cwd=ws)
+    assert (ws / "projects/app/a.py").read_text() == "2\n"
+    # sync landed the unsaved edit on a fresh branch based on the squash-merged main,
+    # so the next pull request has no conflict; a further land finds nothing new.
+    assert sh("git", "merge-base", "--is-ancestor", "main", "goal/g", cwd=ws) == ""
+    assert sh("git", "log", "--format=%s", "-2", "goal/g", cwd=ws).splitlines() == \
+        ["Save unfinished work from an earlier session", "Update app (#1)"]
+    again = landing.land(ws, "second edit")
+    assert again["landed"] is False or not again["projects"][0]["committed"]
+
+
+def test_land_from_detached_head_at_main(repos):
+    ws, _ = repos
+    sh("git", "checkout", "-q", "--detach", cwd=ws)
+    write(ws, "docs/cloud.md", "from the cloud\n")
+    result = landing.land(ws, "Caretaker: note")
+    assert result["landed"]
+    assert sh("git", "rev-parse", "--abbrev-ref", "HEAD", cwd=ws) == "main"
+
+
 def test_land_refuses_off_main(repos):
     ws, _ = repos
     sh("git", "checkout", "-q", "-b", "side", cwd=ws)

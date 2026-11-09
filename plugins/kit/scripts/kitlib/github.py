@@ -240,6 +240,7 @@ def retry_failed_checks(slug: str, number: int) -> dict:
 # ---------------------------------------------------------------- repository settings
 
 ALERTS_UNAVAILABLE = "Dependabot alerts can't be read with this run's GitHub access"
+last_alerts_note: str | None = None  # set when the last dependabot_alerts call couldn't read them
 
 
 def dependabot_alerts(slug: str) -> list[dict]:
@@ -252,6 +253,8 @@ def dependabot_alerts(slug: str) -> list[dict]:
     except KitError as exc:
         text = str(exc).lower()
         if any(k in text for k in ("403", "404", "disabled", "not accessible", "forbidden", "not enabled")):
+            global last_alerts_note
+            last_alerts_note = ALERTS_UNAVAILABLE + f" ({str(exc)[-80:]})"
             return []
         raise
     return [{"number": a["number"], "severity": a.get("security_advisory", {}).get("severity"),

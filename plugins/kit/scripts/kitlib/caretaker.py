@@ -142,9 +142,14 @@ def sweep(root: Path, dry_run: bool = False) -> dict:
         else:
             report["waiting"].append(entry)
     try:
+        github.last_alerts_note = None
         report["alerts"] = github.dependabot_alerts(slug)
+        if github.last_alerts_note:
+            report["alerts_unreadable"] = True
+            report["notes"].append(github.last_alerts_note + "; say so in NEEDS-YOU once, not every day")
     except KitError as exc:
         report["alerts"] = []
+        report["alerts_unreadable"] = True
         report["notes"].append(f"could not read Dependabot alerts: {exc}")
     report["chores"] = chores.run_due(root, "cloud", max_seconds=300, limit=None)
     report["stale"] = {"explorations": packets.stale(root, "exploration", 30), "goals": packets.stale(root, "goal", 30)}
