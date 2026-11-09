@@ -681,6 +681,42 @@ a session through the schedule tool. The welcome has one line on usage and
 pausing. A run rejected at the usage limit shows up as one NEEDS-YOU line via
 the `caretaker-health` chore.
 
+## 2026-11-09
+
+### D75. The v3 VM proof and what it changed
+
+- **Evidence.** `tests/vm/evidence/2026-11-09-0026.md`, with the narrative of
+  the scripted run appended. Done items covered on the VM: a workspace shaped
+  by the fixture memories with no Ed content in the kit; `projects/` code
+  reaching `main` only through a pull request the kit merged after green
+  checks and a review verdict; a fake secret blocked before any commit; the
+  gate refusing a red pull request and an unreviewed one; `kit sync` pulling
+  cleanly after a merge with a local edit kept; `kit migrate` once;
+  OKF-conformant `docs/`; the gardener's deterministic pass. Not yet covered:
+  anything that runs on Claude's cloud (D76 will record it), and the
+  Dependabot merge, which waits for Dependabot's next daily run.
+- **Changed by the proof.** (1) `gitleaks-action` needs `pull-requests: read`
+  with comments off, or its API calls fail on a private repo. (2) osv-scanner
+  v2 has no `--skip-git`, and its `v2.7.0` tag is annotated, so the hash pin
+  is the tag's commit, which zizmor checks. (3) semgrep's `p/default` and
+  zizmor both require a Dependabot `cooldown`; the template and generated
+  entries set seven days. (4) A project's workflow file reaches `main` before
+  its folder does, so the push filter lists only the folder. (5) A review
+  verdict covers one project tree: `kit review record` stores the tree, and
+  `kit pr open` posts `kit/review` only while the branch tip still matches it.
+  (6) Dependabot closes a PR whose pin the kit lands itself, so a Dependabot
+  proof needs a dependency the kit leaves alone.
+- **Manual steps.** Adding the operator's GitHub user as a collaborator on
+  the test repo (the proof session's permission classifier refused it; done
+  by Benjamin in the VM as the test account) is a documented manual step like
+  D41's Hello PIN and Balanced preset; real friends run the caretaker on their
+  own account against their own repository. The test account's `gh` token is
+  readable only in the desktop logon session, so proof scripts run through
+  `run.sh vmi`.
+- **Observed.** The operator's Claude account was at its weekly limit during
+  the proof (reset Nov 11, 10pm America/New_York): D66 before the caretaker
+  existed. Headless sessions from the VM stopped there.
+
 ## Facts from research that shape the build
 
 - 1Password Individual is about $36 for the first year, then about $48 a year.
