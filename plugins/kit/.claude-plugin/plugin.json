@@ -1,0 +1,9 @@
+{
+  "name": "kit",
+  "description": "The kit itself: one-time setup, the explore and goal packets, projects with their own checks, the guards, the caretaker that merges green work while the user is away, chores, and plain-language decision briefs.",
+  "author": {
+    "name": "kriegcloud"
+  },
+  "license": "Apache-2.0",
+  "repository": "https://github.com/kriegcloud/beep-beginners"
+}

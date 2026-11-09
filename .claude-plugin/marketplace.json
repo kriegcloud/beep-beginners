@@ -8,19 +8,9 @@
   },
   "plugins": [
     {
-      "name": "onboarding",
-      "source": "./plugins/onboarding",
-      "description": "Sets up a Windows, macOS or Linux machine from scratch: apps, sign-ins, a private workspace on GitHub, and a help line. Run once."
-    },
-    {
-      "name": "guards",
-      "source": "./plugins/guards",
-      "description": "Safety hooks for every workspace: blocks risky git commands and secret files, and backs work up to GitHub at the end of each session."
-    },
-    {
-      "name": "explore",
-      "source": "./plugins/explore",
-      "description": "Turns 'I want to explore X' into a plain-English packet that can graduate into a goal."
+      "name": "kit",
+      "source": "./plugins/kit",
+      "description": "The kit itself: one-time setup, the explore and goal packets, projects with their own checks, the guards, the caretaker that merges green work while the user is away, chores, and plain-language decision briefs."
     },
     {
       "name": "unslop",
@@ -31,16 +21,6 @@
       "name": "helper",
       "source": "./plugins/helper",
       "description": "Help path: writes a help request, and turns the helper's remote access on or off."
-    },
-    {
-      "name": "pokeseller",
-      "source": "./plugins/pokeseller",
-      "description": "Card-resale helpers: filling Mercari listings in Chrome and checking drafts against the folder's listing rules."
-    },
-    {
-      "name": "job-hunt",
-      "source": "./plugins/job-hunt",
-      "description": "The morning job-hunt routine: find new postings, tailor a resume copy, update the tracker."
     }
   ]
 }

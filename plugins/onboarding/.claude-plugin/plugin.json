@@ -1,9 +1,0 @@
-{
-  "name": "onboarding",
-  "description": "Sets up a Windows, macOS or Linux machine from scratch: apps, sign-ins, a private workspace on GitHub, and a help line. Run once.",
-  "author": {
-    "name": "kriegcloud"
-  },
-  "license": "Apache-2.0",
-  "repository": "https://github.com/kriegcloud/beep-beginners"
-}

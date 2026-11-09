@@ -1,0 +1,76 @@
+# The kit's own checks: plugin manifests, the Python tests, and a smoke run of
+# `kit` against a fresh copy of the workspace template.
+name: tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  python:
+    name: python tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+      - name: gitleaks binary (the landing tests use it when present)
+        run: |
+          curl -fsSL https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_linux_x64.tar.gz -o /tmp/gl.tgz
+          tar -xzf /tmp/gl.tgz -C /tmp gitleaks && sudo mv /tmp/gitleaks /usr/local/bin/gitleaks
+      - run: git config --global user.name kit && git config --global user.email kit@example.invalid
+      - run: uv run --script plugins/kit/tests/test_rules.py -q
+      - run: uv run --script plugins/kit/tests/test_landing.py -q
+      - run: uv run --script plugins/kit/tests/test_kit.py -q
+      - name: smoke run of the kit on a fresh workspace
+        run: |
+          set -e
+          cp -r plugins/kit/template /tmp/ws && cd /tmp/ws
+          git init -q -b main && git add -A && git commit -q -m Start
+          KIT="$GITHUB_WORKSPACE/plugins/kit/scripts/kit.py"
+          uv run --script "$KIT" explore new "Smoke idea" --notes "hello" >/dev/null
+          uv run --script "$KIT" goal graduate smoke-idea "Smoke goal" >/dev/null
+          uv run --script "$KIT" project new smoke --stack python --goal smoke-goal >/dev/null
+          uv run --script "$KIT" land --message "Smoke" | tee /tmp/land.json
+          grep -q '"branch": "goal/smoke-goal"' /tmp/land.json
+          uv run --script "$KIT" chores run --where cloud --all >/dev/null
+          uv run --script "$KIT" needs-you add --title "Smoke item" --brief "A brief." >/dev/null
+          uv run --script "$KIT" needs-you read | grep -q "One thing needs you"
+          test "$(git rev-parse --abbrev-ref HEAD)" = main
+
+  plugins:
+    name: plugin validate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - run: curl -fsSL https://claude.ai/install.sh | bash
+      - run: ~/.local/bin/claude plugin validate .
+
+  project-templates:
+    name: project templates build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+      - name: python template
+        run: |
+          set -e
+          cp -r plugins/kit/template /tmp/ws && cd /tmp/ws && git init -q -b main && git add -A && git commit -q -m Start
+          uv run --script "$GITHUB_WORKSPACE/plugins/kit/scripts/kit.py" project new demo-py --stack python >/dev/null
+          cd projects/demo-py && uv sync --group dev && uv run ruff check . && uv run ruff format --check . && uv run pytest -q
+      - name: typescript template
+        run: |
+          set -e
+          cd /tmp/ws
+          uv run --script "$GITHUB_WORKSPACE/plugins/kit/scripts/kit.py" project new demo-ts --stack ts >/dev/null
+          cd projects/demo-ts && bun install && bun run check && bun run typecheck && bun run test

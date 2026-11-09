@@ -109,6 +109,18 @@ case "${1:-help}" in
     "$RUN" copy "$TAR" 'C:/Users/lawyer/beep-beginners.tar'
     "$RUN" ssh 'Remove-Item -Recurse -Force C:\Users\lawyer\beep-beginners -ErrorAction SilentlyContinue; tar -xf C:\Users\lawyer\beep-beginners.tar -C C:\Users\lawyer; Remove-Item C:\Users\lawyer\beep-beginners.tar; New-Item -ItemType Directory -Force C:\Users\lawyer\Desktop\setup | Out-Null'
     rm -f "$TAR"
+    # v3: the profile step reads a memories file. The real one stays outside the
+    # repo (BEEP_BEGINNERS_MEMORIES_FIXTURE, default ../memories.txt next to the
+    # kit checkout); only a scrubbed example is committed. The workspace points
+    # its marketplace at the local kit copy, since v3 isn't on GitHub yet.
+    FIXTURE="${BEEP_BEGINNERS_MEMORIES_FIXTURE:-$KIT/../memories.txt}"
+    if [[ -f "$FIXTURE" ]]; then
+      "$RUN" copy "$FIXTURE" 'C:/Users/lawyer/beep-test/memories.txt'
+      echo "memories fixture shipped to C:\\Users\\lawyer\\beep-test\\memories.txt"
+    else
+      echo "no memories fixture at $FIXTURE; the profile step will ask for a paste" >&2
+    fi
+    "$RUN" ssh '[Environment]::SetEnvironmentVariable("BEEP_BEGINNERS_MARKETPLACE_SOURCE", "C:\Users\lawyer\beep-beginners", "User"); [Environment]::SetEnvironmentVariable("BEEP_BEGINNERS_MEMORIES_FIXTURE", "C:\Users\lawyer\beep-test\memories.txt", "User"); [Environment]::SetEnvironmentVariable("BEEP_BEGINNERS_TEST", "1", "User"); New-Item -ItemType Directory -Force C:\Users\lawyer\beep-test | Out-Null'
     SHOTS="$STATE/shots/milkman-$(date +%Y%m%d-%H%M)"
     mkdir -p "$SHOTS"; echo "$SHOTS" >"$STATE/shots/milkman-current-dir"
     nohup bash -c "while true; do f=\"$SHOTS/\$(date +%H%M%S)\"; virsh -c $CONN screenshot $NAME \"\$f.ppm\" >/dev/null 2>&1 && magick \"\$f.ppm\" -resize 60% \"\$f.png\" && rm -f \"\$f.ppm\"; sleep 15; done" >/dev/null 2>&1 &

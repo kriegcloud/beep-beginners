@@ -490,6 +490,29 @@ brief. Nothing pushed; Benjamin reviews both. The v2 decisions not named
 above stand: Windows first, operator and mentor modes, the help channel, the
 software list, the VM proof.
 
+### D59. Matt Pocock's skills, wrapped for the user [added 2026-11-08 to the brief]
+
+- **Question.** The workspace enables `mattpocock-skills@claude-plugins-official`
+  (grilling, wayfinder, to-spec, implement-spec, tdd, code-review, retro and
+  the rest). Who are they for, and how do they fit a user who doesn't code?
+- **Answer.** Keep the plugin upstream and auto-updating. Thin kit skills set
+  the audience for the user-facing ones: `kit-grill` wraps `grilling` with
+  plain-language questions, one decision per question, the user's "how I
+  learn" profile and unslop; the explore skill's decide stage uses it. The
+  engineering skills are agent-only, used inside `projects/`, and reach the
+  user only through unslop and an explain brief. Under `projects/` they are
+  required: `wayfinder` for any goal bigger than one session, `to-spec` then
+  `implement-spec` per change with the spec in the goal packet, `tdd` and
+  `code-review` on every project branch before `kit pr merge`, `retro` at
+  goal close written into the packet. `wayfinder`'s tracker is local markdown
+  inside the goal packet (`goals/<slug>/wayfinder/`), described by the
+  template's `docs/agents/issue-tracker.md`, so the user reads the plan as
+  files in OpenKnowledge; the root `GLOSSARY.md` doubles as its glossary.
+  `/grill-me`, `/teach`, `/handoff` and `/wait-what` stay typed commands.
+- **Rejected.** Forking the skills into the kit (loses upstream fixes). Letting
+  the engineering skills talk to the user directly (their output assumes a
+  developer).
+
 ## Facts from research that shape the build
 
 - 1Password Individual is about $36 for the first year, then about $48 a year.
