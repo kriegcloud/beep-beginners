@@ -80,7 +80,11 @@ def idle(root: Path, garden: bool = False) -> dict:
     prs = github.list_prs(slug)
     if prs:
         reasons.append(f"{len(prs)} open pull request(s)")
-    alerts = github.dependabot_alerts(slug)
+    try:
+        alerts = github.dependabot_alerts(slug)
+    except KitError as exc:
+        alerts = []
+        reasons.append(f"could not read Dependabot alerts: {exc}")
     if alerts:
         reasons.append(f"{len(alerts)} Dependabot alert(s)")
     if garden:
@@ -132,7 +136,11 @@ def sweep(root: Path, dry_run: bool = False) -> dict:
                 report["needs_fix"].append({**entry, "kit_made": kit_made})
         else:
             report["waiting"].append(entry)
-    report["alerts"] = github.dependabot_alerts(slug)
+    try:
+        report["alerts"] = github.dependabot_alerts(slug)
+    except KitError as exc:
+        report["alerts"] = []
+        report["notes"].append(f"could not read Dependabot alerts: {exc}")
     report["chores"] = chores.run_due(root, "cloud", max_seconds=300, limit=None)
     report["stale"] = {"explorations": packets.stale(root, "exploration", 30), "goals": packets.stale(root, "goal", 30)}
     report["needs_you"] = needs_you.load(root)["open"]

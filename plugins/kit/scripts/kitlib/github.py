@@ -239,11 +239,19 @@ def retry_failed_checks(slug: str, number: int) -> dict:
 
 # ---------------------------------------------------------------- repository settings
 
+ALERTS_UNAVAILABLE = "Dependabot alerts can't be read with this run's GitHub access"
+
+
 def dependabot_alerts(slug: str) -> list[dict]:
+    """Open Dependabot alerts, or [] when this token can't read them. The
+    cloud proxy's installation token lacks the vulnerability-alerts permission
+    ("Resource not accessible by integration", seen 2026-11-09), and alerts
+    are off until onboarding enables them; neither is a reason to stop a run."""
     try:
         alerts = api(f"repos/{slug}/dependabot/alerts?state=open&per_page=100") or []
     except KitError as exc:
-        if "403" in str(exc) or "404" in str(exc) or "disabled" in str(exc).lower():
+        text = str(exc).lower()
+        if any(k in text for k in ("403", "404", "disabled", "not accessible", "forbidden", "not enabled")):
             return []
         raise
     return [{"number": a["number"], "severity": a.get("security_advisory", {}).get("severity"),
