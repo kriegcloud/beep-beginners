@@ -290,10 +290,12 @@ def concept_new(root: Path, folder: str, title: str, ctype: str, body: str, desc
 
 
 def _find(root: Path, concept_id: str) -> Path:
-    candidate = root / (concept_id if concept_id.endswith(".md") else concept_id + ".md")
-    if not candidate.exists():
-        raise KitError(f"no concept at {concept_id}")
-    return candidate
+    """Accept `docs/x.md`, `docs/x`, `x.md` or `x` (looked up under docs/)."""
+    name = concept_id if concept_id.endswith(".md") else concept_id + ".md"
+    for candidate in (root / name, root / "docs" / name):
+        if candidate.exists():
+            return candidate
+    raise KitError(f"no page at {concept_id} (ids look like docs/<name> or just <name>)")
 
 
 def verify(root: Path, concept_id: str, by: str, note: str = "") -> dict:

@@ -273,6 +273,23 @@ def test_land_from_detached_head_at_main(repos):
     assert sh("git", "rev-parse", "--abbrev-ref", "HEAD", cwd=ws) == "main"
 
 
+def test_land_from_detached_head_ahead_of_stale_main(repos, tmp_path):
+    """A cached sandbox checks out the new commit while local main stays behind."""
+    ws, origin = repos
+    other = _caretaker_clone(tmp_path, origin)
+    (other / "docs").mkdir(exist_ok=True)
+    (other / "docs" / "n.md").write_text("---\ntype: how-to\n---\nn\n")
+    sh("git", "add", "-A", cwd=other); sh("git", "commit", "-q", "-m", "Remote change", cwd=other)
+    sh("git", "push", "-q", "origin", "main", cwd=other)
+    sh("git", "fetch", "-q", "origin", cwd=ws)
+    sh("git", "checkout", "-q", "--detach", "origin/main", cwd=ws)  # local main is now behind HEAD
+    write(ws, "docs/cloud.md", "---\ntype: how-to\n---\nfrom the cloud\n")
+    result = landing.land(ws, "Caretaker: note")
+    assert result["landed"]
+    assert sh("git", "rev-parse", "--abbrev-ref", "HEAD", cwd=ws) == "main"
+    assert sh("git", "log", "--format=%s", "-2", cwd=ws).splitlines() == ["Caretaker: note", "Remote change"]
+
+
 def test_land_refuses_off_main(repos):
     ws, _ = repos
     sh("git", "checkout", "-q", "-b", "side", cwd=ws)

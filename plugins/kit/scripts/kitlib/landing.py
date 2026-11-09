@@ -84,13 +84,16 @@ def ensure_main(root: Path) -> str:
     head = git(root, "rev-parse", "HEAD", timeout=10).stdout.strip()
     local_main = git(root, "rev-parse", "--verify", "--quiet", "refs/heads/main", timeout=10).stdout.strip()
     remote_main = git(root, "rev-parse", "--verify", "--quiet", "refs/remotes/origin/main", timeout=10).stdout.strip()
-    if local_main == head or (not local_main and remote_main in (head, "")):
-        if local_main:
-            git(root, "checkout", "-q", "main", timeout=30, check=True)
-        else:
-            git(root, "checkout", "-q", "-b", "main", timeout=30, check=True)
-            if remote_main:
-                git(root, "branch", "-q", "--set-upstream-to=origin/main", "main", timeout=10)
+    if local_main == head:
+        git(root, "checkout", "-q", "main", timeout=30, check=True)
+        return "main"
+    # A cached sandbox fetches and checks out the new commit while its local main
+    # stays behind (seen 2026-11-09): moving main forward to HEAD is a fast-forward.
+    behind = bool(local_main) and git(root, "merge-base", "--is-ancestor", "main", "HEAD", timeout=20).returncode == 0
+    if behind or (not local_main and remote_main in (head, "")):
+        git(root, "checkout", "-q", "-B", "main", "HEAD", timeout=30, check=True)
+        if remote_main:
+            git(root, "branch", "-q", "--set-upstream-to=origin/main", "main", timeout=10)
         return "main"
     return branch
 

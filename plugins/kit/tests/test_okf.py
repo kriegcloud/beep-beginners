@@ -78,7 +78,7 @@ def test_concept_lifecycle(ws):
     log = (ws / "docs" / "log.md").read_text()
     assert f"## {dt.date.today().isoformat()}" in log and "**Creation**" in log
     # verification by a person promotes the draft and sets the tier
-    okf.verify(ws, made["id"], "human:sam")
+    okf.verify(ws, made["id"].split("/", 1)[1], "human:sam")  # a bare id works too
     meta, _ = okf.read(path)
     assert meta["status"] == "stable" and okf.trust_tier(meta) == "human-reviewed"
     okf.set_status(ws, made["id"], "deprecated", "superseded")
