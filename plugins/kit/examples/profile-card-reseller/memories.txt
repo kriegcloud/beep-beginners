@@ -1,0 +1,35 @@
+## 1. Instructions
+
+[2026-10-29] - Card listings, English only: never put Japanese characters in a listing, even for Japanese cards. Use the English card name and say "Japanese" in words.
+[2026-10-29] - Card listings, how to fill the form: use Claude in Chrome (I'm signed in to the marketplace there; the built-in browser can't upload photos). Upload photos from the card's folder in my card inbox, cleanest slab-front shot first because it becomes the cover. Replace the site's suggested title with the lister's title.
+[2026-10-29] - Card listings, template: start from my saved listing template (Trading Cards > Single Cards, brand Pokemon, my standard closing text). Put card-specific lines above the template text.
+[2026-10-29] - Card listings, graded slabs: always set condition to Good. Shipping line is always "Slab ships in a bubble mailer with protection." Never put the grading cert number in the title or description; the grade line is just e.g. "Graded PSA 8 NM-MT".
+[2026-10-29] - Card listings, price and posting: leave the price empty and never press List. I set the price and post myself.
+[2026-11-02] - Ask when unsure: you are allowed to fail, but always ask clarifying questions if you are unsure. For unclear money or listing changes (prices, offers, publishing, deleting), ask one short question before acting. For low-stakes ambiguity, pick the sensible default and say what you assumed.
+[2026-11-02] - Mentor mode (learning project): act as a professor or workplace mentor, not a doer. Give the next step, let me do it, then review. Do the work yourself only when I explicitly ask.
+[2026-11-03] - Mentor mode, quizzing: ask questions that prove understanding (why, when, what if), and only about things we've covered.
+[2026-11-03] - Mentor mode, teaching style: treat everything as new. No syntax or jargon I haven't seen; explain new terms the first time. Use current workplace practices (raw vs. clean data, source of record, reconciliation, version naming, git, folder structure, documentation) so skills transfer.
+
+## 2. Identity
+
+[unknown] - Name: Sam.
+[unknown] - Education: accounting degree.
+[2026-10-29] - Interest: Pokemon cards. I collect and resell them, including graded slabs and Japanese cards.
+
+## 3. Career
+
+[unknown] - Past work: tax preparation; implementation consultant (wrote some SQL views at work, otherwise only tutorials).
+[2026-11-02] - Job search: aiming for an entry-level data, financial or BI analyst role (exact target still open). Learning Python, SQL and Power BI; about 5 to 10 hours a week available.
+
+## 4. Projects
+
+[2026-10-29] - Card business: my card resale business and tooling. The workbook is the source of record. A lister script drafts listings and strips Japanese characters; a config file holds listing settings; an import script imports sales (one marketplace's sales don't come in yet). I sell on two marketplaces and direct through social media.
+[2026-11-02] - Card ledger: portfolio project analyzing my sales data with Python, then SQL, then Power BI (P&L, FIFO cost of goods, payout reconciliation, inventory valuation). Kept separate from the business tooling so private config and buyer details never get published. Decisions: raw data holds dated snapshot copies, never edited; bundles stay single items for now; cancellations use Status = "Canceled". Open: shipping cost for direct sales unknown, cost basis missing on many rows.
+[2026-11-04] - Morning job hunt: my "usual morning job search" routine. Search job boards for postings from the last day, check the posting's own date, tailor a copy of my base resume (rewrite the summary and first skills line, reorder bullets), save PDFs, add a row to the tracker.
+
+## 5. Preferences
+
+[2026-10-29] - Browser: use Claude in Chrome for marketplace work (signed in there; photo uploads work).
+[2026-11-02] - Your guesses are usually right; checking matters only when the ambiguity is real.
+[2026-11-03] - Learning: tying concepts to my accounting and tax background (workpapers, duplicate checks, reversing entries) lands well.
+[2026-11-03] - Learning goal: understand the tools and know why and when to use them, so I can explain my project in interviews, rather than end up with work I can't explain.

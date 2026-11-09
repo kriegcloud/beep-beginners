@@ -1,0 +1,78 @@
+# The kit's chores (D52). The kit owns this list, so a fix here reaches every
+# workspace through the marketplace. Per chore:
+#   id        stable key; the handler in scripts/kitlib/chores.py has the same name
+#   cadence   days between runs
+#   where     desktop | cloud | both. Desktop chores need the user's machine
+#             (plugin updates, the tools list, OneDrive). Cloud ones run in the
+#             caretaker. Both run wherever they come due first.
+#   line      what the user hears, one sentence; {n} and {age} are filled in
+#
+# A desktop session runs the single most overdue chore at session start, under
+# about two minutes, and says the line. The caretaker runs every cloud chore
+# that is due. Timestamps live in .kit/chores.json in the workspace, committed,
+# so both sides see one record.
+#
+# Staleness only ever produces a question (keep, park or drop). Nothing moves or
+# is deleted without a yes.
+schema: beep-beginners/chores/v1
+chores:
+  - id: migrate
+    cadence: 1
+    where: desktop
+    line: "Applied a kit update to your workspace."
+  - id: caretaker-setup
+    cadence: 7
+    where: desktop
+    line: "Ten minutes to set up your caretaker? It tidies up while you're away."
+  - id: merge-green
+    cadence: 1
+    where: desktop
+    line: "Finished work that passed its checks is now in the main copy."
+  - id: caretaker-health
+    cadence: 1
+    where: desktop
+    line: "Checked on the caretaker's last run."
+  - id: okf-validate
+    cadence: 7
+    where: both
+    line: "Checked that every page in docs is well formed."
+  - id: docs-promote
+    cadence: 7
+    where: both
+    line: "{n} note(s) from earlier sessions are now settled facts."
+  - id: index
+    cadence: 1
+    where: both
+    line: "Refreshed the index pages."
+  - id: backup-age
+    cadence: 1
+    where: desktop
+    line: "Your work was last backed up {age} ago."
+  - id: dependabot-waiting
+    cadence: 1
+    where: both
+    line: "{n} update(s) are waiting for the caretaker."
+  - id: plugin-update
+    cadence: 7
+    where: desktop
+    line: "Checked for kit updates."
+  - id: stale-explorations
+    cadence: 7
+    where: both
+    line: "{n} exploration(s) haven't moved in a month. Keep, park or drop?"
+  - id: stalled-goals
+    cadence: 7
+    where: both
+    line: "{n} goal(s) have had no progress in a month. Keep, park or drop?"
+  - id: broken-links
+    cadence: 7
+    where: both
+    line: "{n} broken link(s) in your notes need fixing."
+  - id: onedrive-drift
+    cadence: 7
+    where: desktop
+    line: "Your workspace folder is inside OneDrive, which fights with git."
+  - id: tools-verify
+    cadence: 30
+    where: desktop
+    line: "Checked the apps that had problems last time."

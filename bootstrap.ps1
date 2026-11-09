@@ -66,9 +66,10 @@ if (-not ($settings.PSObject.Properties.Name -contains 'model')) { $settings | A
 if (-not ($settings.PSObject.Properties.Name -contains 'modelSettings')) { $settings | Add-Member -NotePropertyName modelSettings -NotePropertyValue ([pscustomobject]@{ 'claude-opus-5-5' = [pscustomobject]@{ effortLevel = 'medium' } }) }
 $settings | ConvertTo-Json -Depth 10 | Set-Content $settingsPath -Encoding UTF8
 
-# The kit
-& claude plugin marketplace add kriegcloud/beep-beginners 2>&1 | Out-Null
-& claude plugin install onboarding@beep-beginners --scope user 2>&1 | Out-Null
-$result.onboarding_plugin = [bool]((& claude plugin list 2>$null) -match 'onboarding')
+# The kit. Test runs point BEEP_BEGINNERS_MARKETPLACE_SOURCE at a local copy.
+$source = if ($env:BEEP_BEGINNERS_MARKETPLACE_SOURCE) { $env:BEEP_BEGINNERS_MARKETPLACE_SOURCE } else { 'kriegcloud/beep-beginners' }
+& claude plugin marketplace add $source 2>&1 | Out-Null
+& claude plugin install kit@beep-beginners --scope user 2>&1 | Out-Null
+$result.kit_plugin = [bool]((& claude plugin list 2>$null) -match 'kit@beep-beginners')
 
 $result | ConvertTo-Json

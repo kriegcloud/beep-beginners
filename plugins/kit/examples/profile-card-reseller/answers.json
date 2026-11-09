@@ -1,0 +1,36 @@
+{
+  "name": "Sam",
+  "about": "Sam has an accounting degree and has worked in tax preparation and as an implementation consultant. They want an entry-level data, financial or BI analyst job, and are learning Python, SQL and Power BI for 5 to 10 hours a week. They resell Pokemon cards, including graded slabs and Japanese cards, on two marketplaces and directly through social media. First thing they want to figure out: a learning project that analyzes their card sales well enough to talk about in interviews.",
+  "how_i_learn": [
+    "Tie new ideas to accounting: workpapers, duplicate checks, reversing entries, source of record, reconciliation. That lands well.",
+    "They want to understand tools well enough to explain them in an interview, not end up with work they can't explain.",
+    "Treat everything as new. No syntax or jargon they haven't seen; explain each term the first time, then use it.",
+    "Their guesses about what you meant are usually right. Check only when the ambiguity is real.",
+    "Ask clarifying questions when unsure. Failing is fine; say so plainly."
+  ],
+  "folders": [
+    {
+      "name": "card-sales",
+      "summary": "The card resale business: listing drafts, sales imports, the rules for listings. Operator mode. The workbook in Documents is the source of record.",
+      "agents": "# Card sales\n\nThe card resale business. **Operator mode.**\n\n- The workbook named in `workspace.config` (`card_sales_workbook`) is the source of record. Never edit it; read from it.\n- Listing drafts go in `listings/<date>-<card>.md`. The `card-listing` skill writes them and fills the marketplace form.\n- Photos come from the folder named in `workspace.config` (`card_inbox_ready`), one folder per card.\n- Prices, offers, publishing and deleting are the user's: ask one short question first, and never press List."
+    }
+  ],
+  "helper": {
+    "name": "Ben",
+    "keys_url": "https://github.com/example-helper.keys"
+  },
+  "subscriptions": ["claude"],
+  "skills": [
+    {
+      "name": "card-listing",
+      "description": "Draft a marketplace listing for a trading card and fill in the form in Chrome, without publishing it. Use when the user says \"list this card\", \"make a listing for <card>\", \"draft listings for the cards in Ready\", or asks to check a listing draft.",
+      "body": "# Card listing\n\nThe user sets the price and presses List. You never type a price and never press List, Publish or Save changes on a live listing.\n\n## Where things are\n\n- Photos: the `card_inbox_ready` path in `workspace.config`, one folder per card.\n- Drafts: `card-sales/listings/<date>-<card>.md`. If the folder has a lister script, use it to make the draft, then save its output as a draft file.\n\n## Rules for every listing\n\n- English only. Never put Japanese characters in a listing, even for Japanese cards. Use the English card name and say \"Japanese\" in words.\n- Graded slabs: condition is always Good. The shipping line is always \"Slab ships in a bubble mailer with protection.\" Never put the grading cert number in the title or description; the grade line is just the grade, such as \"Graded PSA 8 NM-MT\".\n- Start from the user's saved template (Trading Cards > Single Cards, brand Pokemon, their standard closing text). Card-specific lines go above the template text.\n\n## Steps\n\n1. **Draft.** Write the draft with `Title:`, `Condition:`, `Price:` (left empty) and `Description:` lines. Check it against the rules above before moving on.\n2. **Open the marketplace in Chrome** with Claude in Chrome, where the user is signed in. Don't use the built-in browser; it can't upload photos.\n3. **Start from the saved template.**\n4. **Photos.** Upload from the card's folder, cleanest front shot of the slab first, because the first photo becomes the cover.\n5. **Title.** Replace the site's suggested title with the draft's title.\n6. **Description.** Put the card-specific lines above the template's standard text.\n7. **Condition and shipping** come from the draft.\n8. **Stop.** Leave the price empty. Tell the user the listing is ready for a price, and name the card. Don't press List.\n\n## When unsure\n\nFor anything about money or publishing (prices, offers, deleting or relisting), ask one short question first. For small unclear details, pick the sensible default and say what you assumed."
+    },
+    {
+      "name": "morning-job-hunt",
+      "description": "Run the morning job hunt: find postings from the last day that fit the user's target roles, tailor a copy of their base resume for each good one, save PDFs, and update the tracker. Use when the user says \"do my morning job hunt\", \"usual morning job search\", \"find me jobs\", or \"tailor my resume for this posting\".",
+      "body": "# Morning job hunt\n\nThe search criteria live in this skill; `workspace.config` gives the output folder (`resumes_out`), the tracker file (`job_tracker`) and the base resume (`base_resume`).\n\n## Criteria\n\n- Roles: entry-level data analyst, financial analyst, BI analyst. The exact target is still open, so include all three and say which fits best.\n- Location and remote preference: ask the user the first time, then write the answer here.\n- Posted within the last day. Check the posting's own date, not the list's.\n- Entry level: skip roles that ask for several years of experience.\n\n## Steps\n\n1. **Search** each job board the user names for postings updated in the last day.\n2. **Check freshness.** Open each posting and read its posted date. Skip anything older than a day, and anything already in the tracker.\n3. **Pick** the postings that match the target roles. Say in one line why each one fits.\n4. **Tailor** a copy of the base resume for each pick. Never edit the base. Rewrite the summary and the first skills line for the posting, and reorder bullets so the most relevant come first. Never invent experience. Use `python-docx` through `uv run --with python-docx`.\n5. **Save** each copy as a PDF in `<resumes_out>/<YYYY-MM-DD>/`, named `<Company> - <Role>.pdf`. On Windows, Word does the PDF conversion.\n6. **Track.** Add one row per posting to the tracker CSV: date, company, role, link, posted date, fit note, resume file, status `tailored`.\n7. **Report** in a short list: company, role, why it fits, and where the resume is. Ask before applying to anything.\n\nThis runs when the user asks, so a missed morning doesn't break anything."
+    }
+  ],
+  "first_exploration": "A card-sales ledger I can explain in an interview"
+}

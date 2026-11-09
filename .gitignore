@@ -1,3 +1,4 @@
 /tests/vm/evidence/*.tmp
 /tests/vm/fixtures/*.json
 __pycache__/
+/tests/vm/fixtures/*.txt

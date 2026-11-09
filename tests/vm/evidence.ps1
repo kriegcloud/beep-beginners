@@ -13,7 +13,7 @@ $state = Try-Json { Get-Content "$env:USERPROFILE\.beep-beginners\onboarding.jso
 $ws = if ($state) { $state.answers.workspace } else { $null }
 
 # Every tools.yaml verify, through the kit's own checker.
-$verify = Try-Json { (& uv run --quiet --script "$kit\plugins\onboarding\scripts\tools.py" verify) -join "`n" | ConvertFrom-Json }
+$verify = Try-Json { (& uv run --quiet --script "$kit\plugins\kit\scripts\tools.py" verify) -join "`n" | ConvertFrom-Json }
 
 # Claude CLI and desktop: signed in, and to the same account (compared here, never printed).
 $cli = Try-Json { (& claude auth status) -join "`n" | ConvertFrom-Json }
@@ -47,13 +47,28 @@ $ts = Try-Json { (& "$env:ProgramFiles\Tailscale\tailscale.exe" status --json) -
 
 $plugins = (& claude plugin list 2>$null) -join "`n"
 
+# v3: the profile, the caretaker, security settings and the first packet. Counts and yes/no only.
+$agents = if ($ws -and (Test-Path "$ws\AGENTS.md")) { Get-Content "$ws\AGENTS.md" -Raw } else { '' }
+$skills = if ($ws -and (Test-Path "$ws\.claude\skills")) { @(Get-ChildItem "$ws\.claude\skills" -Directory | Select-Object -ExpandProperty Name) } else { @() }
+$explorations = if ($ws -and (Test-Path "$ws\explorations")) { @(Get-ChildItem "$ws\explorations" -Directory | Select-Object -ExpandProperty Name) } else { @() }
+$remote = if ($ws) { (& git -C $ws remote get-url origin 2>$null) } else { $null }
+$slug = if ($remote -match 'github\.com[:/]([^/]+/[^/.]+)') { $Matches[1] } else { $null }
+$depAlerts = $null; $depUpdates = $null; $deleteOnMerge = $null; $appInstalled = $null
+if ($slug) {
+  & gh api "repos/$slug/vulnerability-alerts" *> $null; $depAlerts = ($LASTEXITCODE -eq 0)
+  $repo = Try-Json { (& gh api "repos/$slug") -join "`n" | ConvertFrom-Json }
+  $deleteOnMerge = if ($repo) { [bool]$repo.delete_branch_on_merge } else { $null }
+  $depUpdates = Try-Json { ((& gh api "repos/$slug/automated-security-fixes") -join "`n" | ConvertFrom-Json).enabled }
+  & gh api "repos/$slug/installation" *> $null; $appInstalled = ($LASTEXITCODE -eq 0)
+}
+
 [ordered]@{
   tools_verify = $verify
   claude = [ordered]@{
     cli_logged_in = [bool]($cli -and $cli.loggedIn)
     desktop_signed_in = [bool]$deskAccount
     same_account = [bool]($cliAccount -and $deskAccount -and ($cliAccount -eq $deskAccount))
-    plugins_installed = @('onboarding','guards','explore','unslop','helper','pokeseller','job-hunt','mattpocock-skills') | Where-Object { $plugins -match [regex]::Escape($_) }
+    plugins_installed = @('kit@beep-beginners','unslop@beep-beginners','helper@beep-beginners','mattpocock-skills') | Where-Object { $plugins -match [regex]::Escape($_) }
     user_default_mode = if ($userSettings) { $userSettings.permissions.defaultMode } else { $null }
   }
   claude_in_chrome_extension = [bool](Get-ChildItem "$env:LOCALAPPDATA\Google\Chrome\User Data\*\Extensions\fcoeoabgfenejglbffodgkkbkcdhcgfn" -ErrorAction SilentlyContinue)
@@ -73,6 +88,21 @@ $plugins = (& claude plugin list 2>$null) -join "`n"
     default_port22_rule_enabled = [bool]($defaultRule -and "$($defaultRule.Enabled)" -eq 'True')
     helper_key_count = $keyCount
     tailscale_state = if ($ts) { $ts.BackendState } else { $null }
+  }
+  v3 = [ordered]@{
+    profile_about_filled = [bool]($agents -and $agents -notmatch 'Onboarding fills this in')
+    how_i_learn_filled = [bool]($agents -and ($agents -split 'slot:how-i-learn -->')[1] -notmatch 'Onboarding fills this in')
+    personal_skills = $skills
+    explorations = $explorations
+    needs_you_present = [bool]($ws -and (Test-Path "$ws\NEEDS-YOU.md"))
+    security_workflow_present = [bool]($ws -and (Test-Path "$ws\.github\workflows\security.yml"))
+    dependabot_alerts_enabled = $depAlerts
+    dependabot_security_updates = $depUpdates
+    delete_branch_on_merge = $deleteOnMerge
+    claude_github_app_installed = $appInstalled
+    caretaker_sweep_routine = [bool]($state -and $state.answers.caretaker_sweep_id)
+    caretaker_pr_routine = [bool]($state -and $state.answers.caretaker_pr_id)
+    gitleaks_present = [bool](Get-Command gitleaks -ErrorAction SilentlyContinue)
   }
   onboarding_steps = if ($state) { $state.steps } else { $null }
 } | ConvertTo-Json -Depth 6

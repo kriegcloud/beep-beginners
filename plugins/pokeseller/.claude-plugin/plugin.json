@@ -1,9 +1,0 @@
-{
-  "name": "pokeseller",
-  "description": "Card-resale helpers: filling Mercari listings in Chrome and checking drafts against the folder's listing rules.",
-  "author": {
-    "name": "kriegcloud"
-  },
-  "license": "Apache-2.0",
-  "repository": "https://github.com/kriegcloud/beep-beginners"
-}

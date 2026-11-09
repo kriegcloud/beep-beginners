@@ -1,9 +1,0 @@
-{
-  "name": "explore",
-  "description": "Turns 'I want to explore X' into a plain-English packet that can graduate into a goal.",
-  "author": {
-    "name": "kriegcloud"
-  },
-  "license": "Apache-2.0",
-  "repository": "https://github.com/kriegcloud/beep-beginners"
-}
