@@ -901,6 +901,26 @@ this repository public"), so the locks come in three layers.
   but not yet seen from the cloud: it needs a day whose safe point does not
   exist yet.
 
+### D81. v3.1.0 released [2026-11-09]
+
+- **Merge.** Benjamin squash-merged kriegcloud/beep-beginners pull request 2
+  (`v3.1` to `main`, seven commits) himself at 08:38 UTC as `c8a7454`, with
+  all eight checks green. The only reds on the pull request were GitHub 504s
+  during download steps, three in all, each re-run once; no test failed.
+- **Release (D72).** `stable` fast-forwarded to `main` at the commit that
+  carries this entry, tagged `v3.1.0`. Every workspace on `stable` gets D80's
+  locks at its next session: the `0002-v3.1-locks` migration adds the deny
+  rules and glossary terms offline, and the monthly `locks` chore applies
+  the GitHub side (squash-only merges, rulesets where allowed, trimming of
+  safe points) from the owner's own machine.
+- **Left open, on the record.** The safe-point push fallback behind the
+  cloud proxy is unit-tested but not yet seen from a cloud run (Benjamin:
+  "Leave it"); the first morning sweep of a v3.1 workspace is its real test.
+  The D79 items stand: Dependabot's within-a-day merge, the D76 end-to-end
+  `caretaker-setup` run, a run rejected at the usage limit, the three
+  disabled proof routines to delete, the VM lock and the test repository as
+  they are until the operator says otherwise.
+
 ## Facts from research that shape the build
 
 - 1Password Individual is about $36 for the first year, then about $48 a year.
