@@ -3,9 +3,11 @@
 Before v3.2 the template's docs/agents/issue-tracker.md carried an unquoted
 `title: Issue tracker: local markdown ...`, and the kit's forgiving reader let
 pages like it through. okflint, Obsidian and OpenKnowledge's own parser do not.
-This rewrites the frontmatter of any page that `kit docs validate` flags as E7,
-through the kit's writer, which quotes such values. Bodies are untouched.
-Idempotent: a page with no E7 problem is left alone.
+This quotes, in place, each value `kit docs validate` flags as E7, and
+changes nothing else on the page: frontmatter comments, key order, spacing
+and the body stay byte for byte. A page that isn't valid UTF-8 is never
+rewritten; it is reported instead. Idempotent: a page with no E7 problem is
+left alone.
 """
 
 from __future__ import annotations
@@ -32,14 +34,23 @@ def _candidates(root: Path) -> list[Path]:
 
 
 def apply(root: Path) -> str:
-    fixed = []
+    fixed, unreadable = [], []
     for path in _candidates(root):
-        text = path.read_text(encoding="utf-8", errors="replace")
-        if not okf.strict_yaml_problems(text):
+        rel = path.relative_to(root).as_posix()
+        if not okf.strict_yaml_problems(path.read_text(encoding="utf-8", errors="replace")):
             continue
-        meta, body = okf.split_frontmatter(text)
-        if meta is None:
+        try:
+            text = path.read_bytes().decode("utf-8")  # bytes, so CRLF line endings survive
+        except UnicodeDecodeError:
+            unreadable.append(rel)
             continue
-        okf.write(path, meta, body)
-        fixed.append(path.relative_to(root).as_posix())
-    return f"quoted frontmatter values in {len(fixed)} page(s): {', '.join(fixed)}" if fixed else "nothing to quote"
+        new = okf.quote_problem_values(text)
+        if new != text:
+            path.write_bytes(new.encode("utf-8"))
+            fixed.append(rel)
+    notes = []
+    if fixed:
+        notes.append(f"quoted frontmatter values in {len(fixed)} page(s): {', '.join(fixed)}")
+    if unreadable:
+        notes.append(f"left {len(unreadable)} page(s) that aren't UTF-8 for a person to check: {', '.join(unreadable)}")
+    return "; ".join(notes) if notes else "nothing to quote"

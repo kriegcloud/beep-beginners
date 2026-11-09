@@ -105,8 +105,10 @@ byte (only `SKILL.md` is renamed). Never edit those files; put kit rules in
 the wrapper `skills/okf/SKILL.md`. CI posts a notice when upstream moves. To
 re-vendor: read the upstream diff, copy the files at the new commit, update
 `commit` and every `sha256` in `UPSTREAM.json`, and run `test_okf.py`.
-To bump okflint, change `OKFLINT` in `kitlib/okf.py` and check
-`okf-base.yaml` against that version's `config/RULES.md`.
+To bump okflint, change `OKFLINT`, `OKFLINT_WITH` (its dependencies, from
+`uv pip compile --exclude-newer <date>`) and `OKFLINT_EXCLUDE_NEWER` in
+`kitlib/okf.py` together, and check `okf-base.yaml` against that version's
+`config/RULES.md`.
 
 ## Releases (D72)
 

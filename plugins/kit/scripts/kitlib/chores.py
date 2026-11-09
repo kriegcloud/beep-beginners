@@ -258,8 +258,7 @@ def _chore_okf_validate(root: Path, **_) -> dict:
         return {"ok": True, "line": ""}
     result = okf.validate(docs)
     linted = okf.lint(docs, timeout=120)
-    files = {e.split(" ", 2)[1].rstrip(":") for e in result["errors"]}
-    files |= {e.split(" ", 2)[1].rstrip(":") for e in linted["errors"]}
+    files = set(result["files"]) | set(linted["files"])
     if not files:
         return {"ok": True, "line": "", "validate": result, "lint": linted}
     n = len(files)

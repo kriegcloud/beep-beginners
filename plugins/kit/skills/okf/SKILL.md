@@ -50,8 +50,10 @@ pinned commit in `upstream/` (Apache-2.0, see `upstream/LICENSE` and
    `kit docs verify <id> --by human:<name>` (the user confirmed it) or
    `--by claude-code/<model>` (you rechecked it against its `sources`), and
    retire a page with `kit docs deprecate <id> --reason "..."`. Don't edit
-   `verified`, `status` or `stale_after` by hand. `status` is the trust tier,
-   never a project's lifecycle.
+   `verified`, `status` or `stale_after` by hand. `status` is the page's
+   state (draft, stable, deprecated); the trust tier (unverified,
+   machine-confirmed, human-reviewed) comes from `verified`. Neither is a
+   project's lifecycle, which lives in `.packet.json`.
 6. **No Knowledge Catalog.** Ignore the `kcmd` and Google Cloud sections;
    this workspace syncs through git and GitHub only.
 7. **The never-list applies to every page**, imports included: no health,

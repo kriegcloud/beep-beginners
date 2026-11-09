@@ -533,7 +533,8 @@ software list, the VM proof.
   owns a packet's lifecycle (active, parked, dropped, graduated; stage; open
   questions). The README frontmatter owns only the trust fields and mirrors
   title, description and dates; `packets.py` rewrites it on every state
-  change. OKF `status` is the trust tier, never the lifecycle: a dropped
+  change. OKF `status` is the page's state, never the lifecycle (clarified
+  in D82: the trust tier the indexes show comes from `verified`): a dropped
   packet is `deprecated`, everything else `stable`, with `stale_after` 30
   days after the last update while active. The lifecycle is also mirrored as
   a `lifecycle` key for readers.
@@ -945,7 +946,9 @@ this repository public"), so the locks come in three layers.
   `E7`: an unquoted value holding `: ` or ` #`, which standard YAML rejects
   or truncates while the kit's reader forgave it. New `kit docs lint` runs
   okflint 0.5.1 (MIT, pure Python, so it works on Windows) pinned through
-  `uv tool run`, against `plugins/kit/okf-base.yaml` rendered with the
+  `uv tool run`, with its dependencies pinned (`beartype==0.23.1`,
+  `pyyaml==6.0.3`) and resolution fenced by `--exclude-newer` to the day it
+  was checked (uv has no hash-checking mode for tool runs), against `plugins/kit/okf-base.yaml` rendered with the
   bundle's absolute path (okflint resolves roots relative to its manifest).
   The manifest has no profile, because concept types stay open; v0.2 field
   shapes are errors; links, split candidates and v0.1 forms are warnings for
@@ -955,8 +958,11 @@ this repository public"), so the locks come in three layers.
 - **Found on the way.** okflint's first run rejected the template's own
   `docs/agents/issue-tracker.md` (`title: Issue tracker: local markdown ...`).
   Every v3.x workspace carries that page. The template is fixed, and the
-  `0003-v3.2-okf-quoting` migration rewrites the frontmatter of any page that
-  fails E7, through the kit's writer, leaving bodies untouched.
+  `0003-v3.2-okf-quoting` migration quotes each E7 value in place, changing
+  nothing else (comments, spacing, line endings, body), and never rewrites a
+  page that isn't UTF-8. The kit's own writer now single-quotes values with
+  backslashes and its reader undoes `''`, `\\` and `\"`, so the kit and
+  standard YAML read every value the same.
 - **CI.** Runs the vendored `validate.sh` (no download), `kit docs lint` on
   the template and on the smoke workspace, re-hashes the vendored files
   against the pinned upstream commit, and posts a notice, not a failure, when

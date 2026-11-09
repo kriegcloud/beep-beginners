@@ -41,7 +41,8 @@ def write_state(folder: Path, state: dict) -> None:
 def mirror_frontmatter(folder: Path, state: dict) -> None:
     """D60: the README carries OKF trust fields so one staleness query covers
     the hub. `.packet.json` stays the lifecycle of record; the frontmatter
-    mirrors it. OKF `status` is the trust tier, not the packet's lifecycle."""
+    mirrors it. OKF `status` is the page's state (draft, stable,
+    deprecated), not the packet's lifecycle; the trust tier comes from `verified`."""
     readme = folder / "README.md"
     if not readme.exists():
         return

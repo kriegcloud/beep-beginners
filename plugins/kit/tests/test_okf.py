@@ -1,6 +1,6 @@
 # /// script
 # requires-python = ">=3.11"
-# dependencies = ["pytest>=8"]
+# dependencies = ["pytest>=8", "pyyaml>=6"]
 # ///
 """docs/ as an OKF bundle, trust and staleness, retros, feedback, migrations
 (D60 to D65, D72, D73). Run: uv run --script plugins/kit/tests/test_okf.py"""
@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import datetime as dt
+import importlib.util
 import json
 import os
 import shutil
@@ -204,8 +205,8 @@ def test_migration_quotes_flagged_pages(ws):
     tracker.write_text(text.replace('title: "Issue tracker: local markdown inside goal packets"\n', OLD_TRACKER_TITLE))
     assert not okf.validate(ws / "docs")["ok"]
     body_before = okf.split_frontmatter(tracker.read_text())[1]
-    spec = __import__("importlib.util").util.spec_from_file_location("m3", KIT / "migrations" / "0003-v3.2-okf-quoting.py")
-    m3 = __import__("importlib.util").util.module_from_spec(spec)
+    spec = importlib.util.spec_from_file_location("m3", KIT / "migrations" / "0003-v3.2-okf-quoting.py")
+    m3 = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(m3)
     assert "docs/agents/issue-tracker.md" in m3.apply(ws)
     assert okf.validate(ws / "docs")["ok"] and okf.split_frontmatter(tracker.read_text())[1] == body_before
@@ -261,7 +262,6 @@ def test_vendored_okf_skill_matches_its_pin():
 
 
 def test_migration_adds_goal_md_and_swaps_old_lines(ws):
-    import importlib.util
     packets.explore_new(ws, "An app", None)
     g = packets.goal_graduate(ws, "an-app", "Ship it", None)
     (ws / "goals" / g["slug"] / "GOAL.md").unlink()  # a goal made before v3.2
@@ -285,6 +285,48 @@ def test_migration_adds_goal_md_and_swaps_old_lines(ws):
     goal_md = (ws / "goals" / g["slug"] / "GOAL.md").read_text()
     assert f"./goals/{g['slug']}/GOAL.md" in goal_md and "Ship it" in goal_md and "{{" not in goal_md
     assert m4.apply(ws) == "nothing to change"
+
+
+def _load_m3():
+    spec = importlib.util.spec_from_file_location("m3", KIT / "migrations" / "0003-v3.2-okf-quoting.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def test_kit_writer_and_standard_yaml_agree():
+    import yaml
+    for value in ["C:\\Users\\sam", "it's", 'say "hi": C:\\a', "it's C:\\b: x", "Fees: 10%", "a #b", "plain"]:
+        text = okf.dump_yaml({"title": value})
+        assert okf.parse_yaml(text)["title"] == value, text
+        assert yaml.safe_load(text)["title"] == value, text
+
+
+def test_quoting_in_place_keeps_everything_else():
+    import yaml
+    text = ("---\r\n# a comment the kit's writer would drop\r\ntype: how-to\r\ntitle: Fees: 10%\r\n"
+            "note: it's C:\\b: x\r\n---\r\n\r\n\r\nbody with: colons\r\n")
+    new = okf.quote_problem_values(text)
+    assert new.count("\r\n") == text.count("\r\n") and "# a comment" in new
+    assert new.endswith("---\r\n\r\n\r\nbody with: colons\r\n")
+    meta = yaml.safe_load(new.split("---")[1])
+    assert meta["title"] == "Fees: 10%" and meta["note"] == "it's C:\\b: x"
+    assert okf.split_frontmatter(new)[0]["note"] == meta["note"] and okf.strict_yaml_problems(new) == []
+    assert okf.quote_problem_values(new) == new
+
+
+def test_migration_never_rewrites_a_page_that_isnt_utf8(ws):
+    page = ws / "docs" / "latin.md"
+    raw = b"---\ntype: how-to\ntitle: Caf\xe9: menu\n---\nbody\n"
+    page.write_bytes(raw)
+    note = _load_m3().apply(ws)
+    assert "docs/latin.md" in note and "aren't UTF-8" in note and page.read_bytes() == raw
+
+
+def test_validate_and_lint_name_failing_files(ws):
+    (ws / "docs" / "bad page.md").write_text("---\ntype: how-to\ntitle: Bad: one\n---\nx\n")
+    result = okf.validate(ws / "docs")
+    assert result["files"] == ["bad page.md"]
 
 if __name__ == "__main__":
     sys.exit(pytest.main([__file__, "-q"]))
