@@ -18,6 +18,23 @@ deleted afterwards.
 3. The v3 kit is reachable from GitHub on a branch (`v3`), since every route
    below fetches it from there. `kit caretaker install --ref v3`.
 
+## Facts learned on 2026-11-09 before the first cloud run
+
+- The operator's Claude account was at its weekly limit (reset Nov 11, 10pm
+  America/New_York), so routines created on it would be rejected until then:
+  D66 observed before the caretaker even existed. The cloud proof waits for
+  the reset.
+- Adding the operator's GitHub user as a collaborator on the test repo was
+  refused by the proof session's permission classifier; the operator does it
+  by hand on github.com or in the VM as the test account.
+- Dependabot closed its first PR on the test repo as superseded when the kit's
+  CI fix pinned the same commit, so the Dependabot proof uses an older ruff
+  pin in `projects/sales-import`; the daily run proposes the bump, or the
+  operator clicks "Check for updates" on the repo's Dependabot page.
+- `kit pr merge` was already proven from the desktop: refused a red Dependabot
+  PR, merged the green reviewed PR #2 (squash `0f3b81a`), refused PR #3 for a
+  missing `kit/review` verdict. The cloud runs reuse that gate.
+
 ## Routes to try, in order (D45)
 
 | Route | How the kit gets in | What it costs |

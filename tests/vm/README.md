@@ -57,3 +57,25 @@ from `run.sh vm`/`vmi` get the account-password dialog and time out. Collect
 `baseline/` holds `winget list` inventories of the start snapshot. The
 2026-11-06 pre-tools inventory came before Chrome, VS Code, PowerShell 7 and
 Windows Terminal were added to the snapshots (D32).
+
+## The v3 proof (2026-11-09)
+
+v3's proof drove the kit's scripts straight from the harness instead of the
+desktop app: `run.sh prepare milkman-signed-in` ships the kit and the memories
+fixture (`BEEP_BEGINNERS_MEMORIES_FIXTURE`, default `../memories.txt` beside the
+kit checkout, never committed) and sets the test environment variables for the
+`lawyer` user (`BEEP_BEGINNERS_MARKETPLACE_SOURCE` pointing at the local kit
+copy, `BEEP_BEGINNERS_KIT_REF=main`, `BEEP_BEGINNERS_TEST=1`). Each step then ran
+as a PowerShell script through `run.sh vmi` in the interactive logon session,
+where `gh` can read its credential store. One headless `claude -p` session in
+the workspace checked the SessionStart hook and the loaded skills; a second
+would have cost more of the operator's weekly limit, which that session showed
+was already spent.
+
+What the agent-driven onboarding adds on top of the scripts (the interview,
+the welcome, the D57 hand-off into the explore skill) is prompt text in the
+onboarding skill; the scripts it calls are what this proof exercised.
+
+Steps for a rerun: `prepare`, then the `proof*.ps1` scripts the session wrote
+to `C:\Users\lawyer\beep-test\` (kept out of the repo; the evidence file
+lists what each did), then `evidence`, `reset`, `finish`.
