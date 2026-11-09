@@ -903,8 +903,10 @@ this repository public"), so the locks come in three layers.
 
 ### D81. v3.1.0 released [2026-11-09]
 
-- **Merge.** Benjamin squash-merged kriegcloud/beep-beginners pull request 2
-  (`v3.1` to `main`, seven commits) himself at 08:38 UTC as `c8a7454`, with
+- **Merge.** Benjamin merged kriegcloud/beep-beginners pull request 2
+  (`v3.1` to `main`, seven commits) himself at 08:38 UTC as the merge commit
+  `c8a7454` (a merge commit, not a squash: the kit's own repository still
+  allows both; a friend's workspace, after D80, allows only squashes), with
   all eight checks green. The only reds on the pull request were GitHub 504s
   during download steps, three in all, each re-run once; no test failed.
 - **Release (D72).** `stable` fast-forwarded to `main` at the commit that
