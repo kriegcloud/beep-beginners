@@ -1,10 +1,12 @@
 # Checks for projects/{{name}}. Runs only when that folder changes.
 name: project-{{name}}
 
+# The workflow file reaches main (a hub path) before the project folder does
+# (it arrives through the pull request), so only the folder is in the push filter.
 on:
   push:
     branches: [main]
-    paths: ["projects/{{name}}/**", ".github/workflows/project-{{name}}.yml"]
+    paths: ["projects/{{name}}/**"]
   pull_request:
     paths: ["projects/{{name}}/**", ".github/workflows/project-{{name}}.yml"]
 

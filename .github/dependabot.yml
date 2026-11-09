@@ -1,0 +1,11 @@
+# Dependabot (D50): version and security updates. Free on a personal private
+# repository once onboarding turns alerts on. `kit project new` adds one entry
+# per project folder. The caretaker merges green updates; nobody reads these.
+version: 2
+updates:
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    cooldown:
+      default-days: 7

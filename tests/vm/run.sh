@@ -114,6 +114,7 @@ case "${1:-help}" in
     # kit checkout); only a scrubbed example is committed. The workspace points
     # its marketplace at the local kit copy, since v3 isn't on GitHub yet.
     FIXTURE="${BEEP_BEGINNERS_MEMORIES_FIXTURE:-$KIT/../memories.txt}"
+    "$RUN" ssh 'New-Item -ItemType Directory -Force C:\Users\lawyer\beep-test | Out-Null'
     if [[ -f "$FIXTURE" ]]; then
       "$RUN" copy "$FIXTURE" 'C:/Users/lawyer/beep-test/memories.txt'
       echo "memories fixture shipped to C:\\Users\\lawyer\\beep-test\\memories.txt"

@@ -13,6 +13,9 @@ jobs:
   gitleaks:
     name: gitleaks
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -21,6 +24,9 @@ jobs:
       - uses: gitleaks/gitleaks-action@e0c47f4f8be36e29cdc102c57e68cb5cbf0e8d1e # v3.0.0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Comments need pull-requests: write; the check result is enough here.
+          GITLEAKS_ENABLE_COMMENTS: "false"
+          GITLEAKS_ENABLE_UPLOAD_ARTIFACT: "false"
 
   semgrep:
     name: semgrep
@@ -54,9 +60,8 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: google/osv-scanner-action/osv-scanner-action@6ad84ce1ef2d4124ba333b221894c133c4a970ea # v2.7.0
+      - uses: google/osv-scanner-action/osv-scanner-action@b1d267aea5211fa648d9d442fa64b90dbdcbdd36 # v2.7.0
         with:
           scan-args: |-
             --recursive
-            --skip-git
             ./

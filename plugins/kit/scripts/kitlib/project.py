@@ -110,13 +110,14 @@ def _add_dependabot(root: Path, name: str, stack: str) -> None:
     if not path.exists():
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text('version: 2\nupdates:\n  - package-ecosystem: "github-actions"\n    directory: "/"\n'
-                        '    schedule:\n      interval: "weekly"\n', encoding="utf-8")
+                        '    schedule:\n      interval: "weekly"\n    cooldown:\n      default-days: 7\n', encoding="utf-8")
     text = path.read_text(encoding="utf-8")
     directory = f"/projects/{name}"
     if f'directory: "{directory}"' in text:
         return
+    # A seven-day cooldown on new versions (semgrep's dependabot-missing-cooldown rule, D50).
     entry = (f'  - package-ecosystem: "{_ECOSYSTEM[stack]}"\n    directory: "{directory}"\n'
-             f'    schedule:\n      interval: "daily"\n')
+             f'    schedule:\n      interval: "daily"\n    cooldown:\n      default-days: 7\n')
     path.write_text(text.rstrip("\n") + "\n" + entry, encoding="utf-8")
 
 
