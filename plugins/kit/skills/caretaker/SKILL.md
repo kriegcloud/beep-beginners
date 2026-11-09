@@ -30,6 +30,15 @@ In a cloud run the kit may have been fetched to `~/kit`; then `$KIT` points
 at the script instead of the plugin root. GitHub calls are `gh api` REST only;
 `gh pr` and GraphQL fail in the sandbox.
 
+## The locks (D80)
+
+Every run starts by leaving today's safe point (`safe/YYYY-MM-DD`, a tag at
+main) through `kit caretaker idle`; the sweep trims points older than 30
+days. Never delete or move a branch or tag, force-push, `reset --hard`, or
+touch the repository's settings, rules or protection: those are hard rules on
+every plan, in every prompt, and where GitHub can enforce them a ruleset
+refuses too. `kit undo --to safe/<date>` is the only way back.
+
 ## Every run starts cheap (D74)
 
 `kit caretaker idle` (or `kit caretaker idle --garden`) is one REST round. If

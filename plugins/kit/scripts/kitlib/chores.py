@@ -232,6 +232,23 @@ def _chore_caretaker_health(root: Path, **_) -> dict:
             "line": "Check the caretaker's last run with the schedule tool; if it was rejected at the usage limit, add one NEEDS-YOU line."}
 
 
+def _chore_locks(root: Path, **_) -> dict:
+    """D80, monthly from the owner's own machine: re-apply the free layer,
+    apply the enforced layer if the plan now allows it (a Pro upgrade shows
+    up here within a month), and trim safe points the caretaker couldn't."""
+    from . import github
+    try:
+        slug = github.repo_slug(root)
+        enabled = github.enable_security(slug)
+        pruned = github.prune_safe_tags(slug)
+    except KitError as exc:
+        return {"ok": False, "line": "", "error": str(exc)}
+    enforced = enabled.get("protection", {}).get("enforced")
+    line = ("Checked the locks on your GitHub backup: GitHub itself now refuses to erase the main copy."
+            if enforced else "Checked the locks on your GitHub backup and trimmed old safe points.")
+    return {"ok": True, "security": enabled, "safe_points": pruned, "line": line}
+
+
 def _chore_okf_validate(root: Path, **_) -> dict:
     from . import okf
     result = okf.validate(root / "docs") if (root / "docs").exists() else {"ok": True, "errors": []}
@@ -253,6 +270,7 @@ HANDLERS = {
     "caretaker-setup": _chore_caretaker_setup,
     "merge-green": _chore_merge_green,
     "caretaker-health": _chore_caretaker_health,
+    "locks": _chore_locks,
     "okf-validate": _chore_okf_validate,
     "docs-promote": _chore_docs_promote,
     "index": _chore_index,

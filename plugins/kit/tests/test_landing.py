@@ -15,7 +15,7 @@ from pathlib import Path
 import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
-from kitlib import landing  # noqa: E402
+from kitlib import landing, undo  # noqa: E402
 from kitlib.common import KitError, git  # noqa: E402
 
 ENV = {**os.environ, "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@x", "GIT_COMMITTER_NAME": "t",
@@ -296,6 +296,78 @@ def test_land_refuses_off_main(repos):
     write(ws, "x.md", "x\n")
     with pytest.raises(KitError):
         landing.land(ws, "x")
+
+
+# ---------------------------------------------------------------- undo (D80)
+
+def _safe_point(ws: Path, origin: Path, date: str) -> str:
+    sha = sh("git", "rev-parse", "HEAD", cwd=ws)
+    sh("git", "update-ref", f"refs/tags/safe/{date}", sha, cwd=origin)
+    return sha
+
+
+def test_undo_restores_main_as_a_new_commit(repos):
+    ws, origin = repos
+    good = _safe_point(ws, origin, "2026-11-08")
+    write(ws, "docs/note.md", "a mistake\n")
+    landing.land(ws, "Oops")
+    sh("git", "push", "-q", "origin", "main", cwd=ws)
+    bad = sh("git", "rev-parse", "HEAD", cwd=ws)
+    listed = undo.list_points(ws)
+    assert [p["tag"] for p in listed["points"]] == ["safe/2026-11-08"] and listed["main_is_at"] == []
+    result = undo.undo(ws, "safe/2026-11-08")
+    assert result["undone"] and result["via"] == "main"
+    head = sh("git", "rev-parse", "HEAD", cwd=ws)
+    assert sh("git", "rev-parse", "HEAD^{tree}", cwd=ws) == sh("git", "rev-parse", f"{good}^{{tree}}", cwd=ws)
+    assert sh("git", "rev-parse", "HEAD^", cwd=ws) == bad  # history kept: the mistake is the parent
+    assert sh("git", "rev-parse", "main", cwd=origin) == head  # pushed, fast-forward
+    assert not (ws / "docs" / "note.md").exists()
+    assert undo.undo(ws, "safe/2026-11-08")["reason"].startswith("main already matches")
+
+
+def test_undo_refuses_unsaved_work_and_unknown_points(repos):
+    ws, origin = repos
+    _safe_point(ws, origin, "2026-11-08")
+    write(ws, "README.md", "edited\n")
+    with pytest.raises(KitError, match="unsaved"):
+        undo.undo(ws, "safe/2026-11-08")
+    sh("git", "checkout", "-q", "--", "README.md", cwd=ws)
+    with pytest.raises(KitError, match="no safe point"):
+        undo.undo(ws, "safe/2020-01-01")
+    with pytest.raises(KitError, match="which safe point"):
+        undo.undo(ws, "yesterday")
+
+
+def test_undo_goes_through_a_pull_request_when_main_refuses(repos):
+    ws, origin = repos
+    good = _safe_point(ws, origin, "2026-11-08")
+    write(ws, "docs/note.md", "a mistake\n")
+    landing.land(ws, "Oops")
+    sh("git", "push", "-q", "origin", "main", cwd=ws)
+    before = sh("git", "rev-parse", "main", cwd=origin)
+    hook = origin / "hooks" / "pre-receive"
+    hook.write_text("#!/bin/sh\nwhile read old new ref; do [ \"$ref\" = refs/heads/main ] && { echo 'GH013: rule violations'; exit 1; }; done; exit 0\n")
+    hook.chmod(0o755)
+    opened = {}
+
+    def fake_open_pr(slug, branch, title, body, base="main", review=None):
+        opened.update({"slug": slug, "branch": branch, "title": title})
+        return {"number": 9, "sha": sh("git", "rev-parse", branch, cwd=ws), "opened": True}
+    import kitlib.github as gh
+    statuses = []
+    gh_post = gh.post_review_status
+    gh.post_review_status = lambda slug, sha, state, desc, target_url="": statuses.append((sha, state, desc)) or {}
+    gh.repo_slug = lambda root: "o/r"
+    try:
+        result = undo.undo(ws, "safe/2026-11-08", open_pr=fake_open_pr)
+    finally:
+        gh.post_review_status = gh_post
+    assert result["via"] == "pull_request" and result["pr"]["number"] == 9
+    assert opened["branch"] == "undo/2026-11-08" and statuses and statuses[0][1] == "success"
+    assert sh("git", "rev-parse", "main", cwd=origin) == before  # main untouched
+    assert sh("git", "rev-parse", "main", cwd=ws) == before  # local main put back
+    assert sh("git", "rev-parse", "undo/2026-11-08^{tree}", cwd=origin) == sh("git", "rev-parse", f"{good}^{{tree}}", cwd=ws)
+    assert (ws / "docs" / "note.md").exists()  # the working tree is main's again
 
 
 def test_partition():

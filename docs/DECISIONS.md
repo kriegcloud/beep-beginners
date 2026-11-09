@@ -827,6 +827,62 @@ the `caretaker-health` chore.
   on the operator's account. The VM lock and the test repository stay as they
   are until the operator says otherwise.
 
+### D80. Destructive actions are hard on every plan, impossible where GitHub can enforce it [2026-11-09]
+
+Benjamin: "I think we should probably setup branch protection for the
+created repository as well. At least make it hard to do destructive things."
+GitHub Free can't enforce branch protection or rulesets on a private
+repository (the D50 fact; the API answers 403 "Upgrade to GitHub Pro or make
+this repository public"), so the locks come in three layers.
+
+- **Free layer, always.** `kit security enable` sets the repository to
+  squash-only merges (`allow_merge_commit` and `allow_rebase_merge` off) with
+  delete-branch-on-merge. The guard and the template's deny rules refuse
+  force pushes (`--force`, `--force-with-lease`, `--force-if-includes`,
+  `--mirror`, `--prune`, a `+` or `:` before a ref), remote deletes
+  (`git push --delete`), deleting or renaming `main`, `goal/*`, `project/*`
+  or `claude/*` branches, `git tag -d`, `git update-ref -d`, `git reset
+  --hard`, `gh repo delete|archive|rename`, `gh api` DELETE on refs,
+  releases, tags or the repository, and any write to rulesets, protection or
+  the repository's settings. Two-repository cloud sessions load no settings
+  deny rules (D77), so the same denials are hard rules in every routine
+  prompt, through the never-list. On a Free account with a private
+  repository, `kit security enable` leaves one optional NEEDS-YOU item (kind
+  `github-pro`), one brief, saying what $4 a month adds; it is asked once,
+  never re-added, and resolved by Pro or by the user saying no.
+- **Enforced layer, automatic when possible.** Where the rulesets API
+  answers (public repositories on every plan, private ones on Pro and up),
+  `kit security enable` applies three rulesets without asking and the user
+  hears one sentence. "kit: main is never erased": deletion and
+  non-fast-forward on the default branch, no bypass for anyone, the owner
+  included. "kit: changes to main come through pull requests": a pull
+  request and the `kit/review` status, with the owner (repository admin) and
+  the Claude GitHub App as bypass actors, because the kit lands hub changes
+  on `main` directly (D48) from the desktop and from the caretaker; everyone
+  else goes through a pull request. This is narrower than "main requires a
+  PR" as first chosen: a rule binding the owner would block `kit land` and
+  `kit sync` themselves. "kit: release and safe-point tags stay": no
+  deletion or update of `v*` and `safe/*`, the owner's own machine excepted
+  so it can trim old safe points. Rulesets are updated in place by name on
+  every run, so a plan upgrade shows up within a month through the `locks`
+  chore. A bot's version bump gets a `kit/review` status from the kit before
+  its merge, because the status rule has no idea who is a bot.
+- **Recovery net, every plan.** Every caretaker run leaves a lightweight tag
+  `safe/YYYY-MM-DD` at `main` (in `kit caretaker idle`, so an idle day is
+  covered too); the sweep trims points older than 30 days, and where the tag
+  ruleset refuses that, the owner's machine does it in the monthly `locks`
+  chore. `kit undo --to safe/<date>` restores `main` as a new commit on top
+  of history, never a force push; where a rule refuses the direct push (a
+  collaborator without the bypass), the same commit goes up on an
+  `undo/<date>` branch with a pull request and the `kit/review` status, and
+  the caretaker merges it. `kit undo list` shows the points. The `undo`
+  skill says it in plain words. Glossary: "Lock", "Safe point".
+- **Migration 0002-v3.1-locks** adds the deny rules and the two glossary
+  terms to existing workspaces; the GitHub side is the `locks` chore's job.
+- **Proof.** The Free path on `benjamintoppold-ai/workspace` (private, Free);
+  the ruleset path on a public repository made under the test account for
+  the proof and deleted after, both recorded in `tests/cloud/evidence/`.
+
 ## Facts from research that shape the build
 
 - 1Password Individual is about $36 for the first year, then about $48 a year.

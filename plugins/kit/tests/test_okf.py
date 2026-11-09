@@ -162,13 +162,22 @@ def test_migrate_runs_once(ws):
     (ws / "CHANGELOG-FOR-ED.md").write_text("old\n")
     glossary = ws / "GLOSSARY.md"
     glossary.write_text("# Glossary\n\n- **A**: b\n")
+    settings = ws / ".claude" / "settings.json"
+    data = json.loads(settings.read_text())
+    data["permissions"]["deny"] = [r for r in data["permissions"]["deny"] if "tag -d" not in r and "DELETE" not in r]
+    settings.write_text(json.dumps(data))
     first = migrate.run(ws)
-    assert [r["migration"] for r in first["ran"]] == ["0001-v3-baseline"] and first["ran"][0]["applied"]
+    assert [r["migration"] for r in first["ran"]] == ["0001-v3-baseline", "0002-v3.1-locks"]
+    assert all(r["applied"] for r in first["ran"])
     assert not (ws / "CHANGELOG-FOR-ED.md").exists() and glossary.read_text().startswith("---")
+    # D80: the v3.1 migration adds the missing deny rules and the two glossary terms
+    deny = json.loads(settings.read_text())["permissions"]["deny"]
+    assert "Bash(git tag -d:*)" in deny and "PowerShell(gh api -X DELETE:*)" in deny
+    assert "**Safe point**" in glossary.read_text() and "**Lock**" in glossary.read_text()
     second = migrate.run(ws)
-    assert second["ran"] == [] and second["applied_total"] == 1
+    assert second["ran"] == [] and second["applied_total"] == 2
     state = json.loads((ws / ".kit" / "migrations.json").read_text())
-    assert "0001-v3-baseline" in state["applied"]
+    assert "0001-v3-baseline" in state["applied"] and "0002-v3.1-locks" in state["applied"]
 
 
 if __name__ == "__main__":

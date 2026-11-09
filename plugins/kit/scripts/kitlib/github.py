@@ -182,6 +182,10 @@ def merge_pr(slug: str, number: int, method: str = "squash") -> dict:
     gate = merge_gate(pr, runs, statuses)
     if not gate["ok"]:
         return {"merged": False, "number": number, "title": pr["title"], "gate": gate, "runs": runs}
+    if pr["author"] in BOT_LOGINS and not any(st["context"] == REVIEW_CONTEXT for st in statuses):
+        # D80: where a ruleset requires kit/review on main, a bot's version bump
+        # needs the status too; the gate already exempts bots from a human review.
+        post_review_status(slug, pr["sha"], "success", "dependency update by a bot; no code of ours to review")
     result = api(f"repos/{slug}/pulls/{number}/merge", "PUT",
                  raw={"merge_method": method, "sha": pr["sha"],
                       "commit_title": f"{pr['title']} (#{number})"})
@@ -264,7 +268,10 @@ def dependabot_alerts(slug: str) -> list[dict]:
 
 
 def enable_security(slug: str) -> dict:
-    """Dependabot alerts and security updates, plus delete-branch-on-merge (D50)."""
+    """D50 and D80: Dependabot alerts and security updates; squash-only merges
+    with delete-branch-on-merge (the free layer, every plan); then the
+    enforced layer where GitHub can enforce it (rulesets: public repositories
+    on every plan, private ones on Pro and up)."""
     results = {}
     for name, path in (("alerts", f"repos/{slug}/vulnerability-alerts"),
                        ("security_updates", f"repos/{slug}/automated-security-fixes")):
@@ -274,11 +281,177 @@ def enable_security(slug: str) -> dict:
         except KitError as exc:
             results[name] = f"failed: {exc}"
     try:
-        api(f"repos/{slug}", "PATCH", raw={"delete_branch_on_merge": True, "allow_auto_merge": False})
+        api(f"repos/{slug}", "PATCH", raw={"delete_branch_on_merge": True, "allow_auto_merge": False,
+                                            "allow_squash_merge": True, "allow_merge_commit": False,
+                                            "allow_rebase_merge": False})
         results["delete_branch_on_merge"] = "enabled"
+        results["squash_only"] = "enabled"
     except KitError as exc:
-        results["delete_branch_on_merge"] = f"failed: {exc}"
+        results["delete_branch_on_merge"] = results["squash_only"] = f"failed: {exc}"
+    results["protection"] = apply_protection(slug)
     return results
+
+
+# ---------------------------------------------------------------- the enforced layer (D80)
+
+CLAUDE_APP_ID = 1236702  # `gh api apps/claude` .id, 2026-11-09: the Claude GitHub App the caretaker runs as
+ADMIN_ROLE_ID = 5  # GitHub's repository role id for admin
+RULESET_NO_ERASE = "kit: main is never erased"
+RULESET_PULL_REQUESTS = "kit: changes to main come through pull requests"
+RULESET_TAGS = "kit: release and safe-point tags stay"
+MAIN_CONDITION = {"ref_name": {"include": ["~DEFAULT_BRANCH"], "exclude": []}}
+
+
+def list_rulesets(slug: str) -> list[dict] | None:
+    """The repository's rulesets, or None where GitHub can't enforce them (a
+    private repository on a Free account answers 403 "Upgrade to GitHub Pro
+    or make this repository public", seen 2026-11-09)."""
+    try:
+        return api(f"repos/{slug}/rulesets?per_page=100") or []
+    except KitError as exc:
+        text = str(exc)
+        if "403" in text or "Upgrade to GitHub Pro" in text or "make this repository public" in text:
+            return None
+        raise
+
+
+def ruleset_bodies(with_admin_bypass: bool = True) -> dict[str, dict]:
+    """The three rulesets as the REST API takes them. The no-erase ruleset has
+    no bypass at all: nobody, the owner included, can force-push or delete
+    main. The pull-request ruleset lets the owner (repository admin) and the
+    Claude App through, because the kit lands hub changes on main directly
+    (D48) from the desktop and from the caretaker; everyone else goes through
+    a pull request with the kit/review status. Tags: v* and safe/* can't be
+    deleted or moved; the owner's own machine may trim old safe points."""
+    admin = [{"actor_id": ADMIN_ROLE_ID, "actor_type": "RepositoryRole", "bypass_mode": "always"}] if with_admin_bypass else []
+    app = [{"actor_id": CLAUDE_APP_ID, "actor_type": "Integration", "bypass_mode": "always"}]
+    return {
+        RULESET_NO_ERASE: {"name": RULESET_NO_ERASE, "target": "branch", "enforcement": "active", "bypass_actors": [],
+                           "conditions": MAIN_CONDITION, "rules": [{"type": "deletion"}, {"type": "non_fast_forward"}]},
+        RULESET_PULL_REQUESTS: {"name": RULESET_PULL_REQUESTS, "target": "branch", "enforcement": "active",
+                                "bypass_actors": admin + app, "conditions": MAIN_CONDITION,
+                                "rules": [{"type": "pull_request", "parameters": {
+                                              "required_approving_review_count": 0, "dismiss_stale_reviews_on_push": False,
+                                              "require_code_owner_review": False, "require_last_push_approval": False,
+                                              "required_review_thread_resolution": False}},
+                                          {"type": "required_status_checks", "parameters": {
+                                              "strict_required_status_checks_policy": False,
+                                              "required_status_checks": [{"context": REVIEW_CONTEXT}]}}]},
+        RULESET_TAGS: {"name": RULESET_TAGS, "target": "tag", "enforcement": "active", "bypass_actors": admin,
+                       "conditions": {"ref_name": {"include": ["refs/tags/v*", "refs/tags/safe/*"], "exclude": []}},
+                       "rules": [{"type": "deletion"}, {"type": "update"}]},
+    }
+
+
+def apply_protection(slug: str) -> dict:
+    """Put the kit's rulesets in place where GitHub enforces them; idempotent
+    (an existing ruleset of the same name is updated). Where they can't be
+    enforced, say so: the caller tells the user once what Pro would add."""
+    existing = list_rulesets(slug)
+    if existing is None:
+        return {"enforced": False, "reason": "GitHub can't enforce rules on a private repository on the Free plan",
+                "rulesets": {}}
+    by_name = {r["name"]: r["id"] for r in existing}
+    outcome: dict[str, str] = {}
+    for name, body in ruleset_bodies().items():
+        try:
+            outcome[name] = _put_ruleset(slug, by_name, name, body)
+        except KitError as exc:
+            if "RepositoryRole" in str(exc) or "actor" in str(exc).lower():
+                # A personal repository may not take the admin role as a bypass
+                # actor. Tags stay protected without it (nobody trims safe points
+                # then). The pull-request ruleset without the owner's bypass
+                # would block the kit's own landing, so it is skipped.
+                if name == RULESET_PULL_REQUESTS:
+                    outcome[name] = f"skipped: the owner can't be a bypass actor here ({str(exc)[-120:]})"
+                    continue
+                try:
+                    outcome[name] = _put_ruleset(slug, by_name, name, ruleset_bodies(with_admin_bypass=False)[name]) + " (no owner bypass)"
+                except KitError as exc2:
+                    outcome[name] = f"failed: {str(exc2)[-200:]}"
+            else:
+                outcome[name] = f"failed: {str(exc)[-200:]}"
+    enforced = outcome.get(RULESET_NO_ERASE, "").startswith(("created", "updated"))
+    return {"enforced": enforced, "reason": "" if enforced else "the no-erase ruleset could not be applied", "rulesets": outcome}
+
+
+def _put_ruleset(slug: str, by_name: dict, name: str, body: dict) -> str:
+    if name in by_name:
+        api(f"repos/{slug}/rulesets/{by_name[name]}", "PUT", raw=body)
+        return "updated"
+    api(f"repos/{slug}/rulesets", "POST", raw=body)
+    return "created"
+
+
+def protection_status(slug: str) -> dict:
+    """What holds on this repository right now (for `kit security status`)."""
+    repo = api(f"repos/{slug}") or {}
+    existing = list_rulesets(slug)
+    names = [] if existing is None else [r["name"] for r in existing if r.get("enforcement") == "active"]
+    return {"private": bool(repo.get("private")), "squash_only": bool(repo.get("allow_squash_merge"))
+            and not repo.get("allow_merge_commit") and not repo.get("allow_rebase_merge"),
+            "delete_branch_on_merge": bool(repo.get("delete_branch_on_merge")),
+            "rulesets_available": existing is not None, "rulesets": names,
+            "enforced": RULESET_NO_ERASE in names, "safe_points": list_safe_tags(slug)}
+
+
+# ---------------------------------------------------------------- the recovery net (D80)
+
+SAFE_PREFIX = "safe/"
+SAFE_KEEP_DAYS = 30
+
+
+def main_sha(slug: str) -> str:
+    ref = api(f"repos/{slug}/git/ref/heads/main") or {}
+    return ref.get("object", {}).get("sha", "")
+
+
+def safe_tag(slug: str, date: str | None = None) -> dict:
+    """A lightweight tag `safe/YYYY-MM-DD` at main's tip, once a day; the
+    recovery net `kit undo` restores from."""
+    import datetime as dt
+    name = SAFE_PREFIX + (date or dt.date.today().isoformat())
+    sha = main_sha(slug)
+    if not sha:
+        raise KitError("main has no commits on GitHub yet")
+    try:
+        api(f"repos/{slug}/git/refs", "POST", raw={"ref": f"refs/tags/{name}", "sha": sha})
+        created = True
+    except KitError as exc:
+        if "already exists" not in str(exc).lower():
+            raise
+        created = False
+    return {"tag": name, "sha": sha, "created": created}
+
+
+def list_safe_tags(slug: str) -> list[dict]:
+    refs = api(f"repos/{slug}/git/matching-refs/tags/{SAFE_PREFIX}") or []
+    tags = [{"tag": r["ref"].removeprefix("refs/tags/"), "sha": r["object"]["sha"]} for r in refs]
+    return sorted(tags, key=lambda t: t["tag"])
+
+
+def prune_safe_tags(slug: str, keep_days: int = SAFE_KEEP_DAYS, today: str | None = None) -> dict:
+    """Delete safe points older than keep_days. Where the tag ruleset is
+    enforced the caretaker's token can't delete them, so they come back as
+    `protected`; the owner's own machine trims them (the protection chore)."""
+    import datetime as dt
+    now = dt.date.fromisoformat(today) if today else dt.date.today()
+    pruned, protected, kept = [], [], []
+    for t in list_safe_tags(slug):
+        try:
+            when = dt.date.fromisoformat(t["tag"].removeprefix(SAFE_PREFIX))
+        except ValueError:
+            kept.append(t["tag"])
+            continue
+        if (now - when).days <= keep_days:
+            kept.append(t["tag"])
+            continue
+        try:
+            api(f"repos/{slug}/git/refs/tags/{t['tag']}", "DELETE")
+            pruned.append(t["tag"])
+        except KitError:
+            protected.append(t["tag"])
+    return {"pruned": pruned, "protected": protected, "kept": kept}
 
 
 def workflow_usage_hint(slug: str) -> dict:
