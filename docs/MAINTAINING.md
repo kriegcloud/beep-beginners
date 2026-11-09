@@ -13,7 +13,7 @@ plugins/
     migrations/NNNN-*.py        idempotent `apply(root)` steps `kit migrate` runs once (D72)
     scripts/{detect,tools,state,workspace,pick_folder}.py   onboarding's scripts
     hooks/hooks.json, rules.py  PreToolUse guard rules, SessionStart/SessionEnd via kit.py hook
-    skills/                     onboarding, explore, goal, project, explain, kit-grill, caretaker
+    skills/                     onboarding, explore, make-goal, project, explain, kit-grill, caretaker
     skills/okf/                 the okf wrapper skill; upstream/ is the vendored OKF skill, pinned in UPSTREAM.json (D82)
     okf-base.yaml               okflint manifest `kit docs lint` renders per bundle (D82)
     templates/                  exploration, goal, project-python, project-ts (with WORKFLOW.yml.tmpl)

@@ -75,8 +75,10 @@ needs code and which stack the `project` skill would pick (Python unless it
 needs a browser UI). Ask the user whether it matches what they had in mind.
 Revise until it does.
 
-**graduate.** For each goal the user wants to start now, run `goal graduate`,
-then fill in the goal's README ("Done means" and "Progress") and `STEPS.md`.
+**graduate.** For each goal the user wants to start now, use the `make-goal`
+skill: it runs `goal graduate`, fills in the goal's README ("Done means" and
+"Progress"), `STEPS.md` and `GOAL.md`, and tells the user the `/goal` line that
+starts it.
 When every goal they wanted exists, set the exploration's status to
 `graduated`. Goals they want "later" stay listed in `PLAN.md`.
 

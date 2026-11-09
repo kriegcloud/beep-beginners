@@ -167,7 +167,7 @@ def test_migrate_runs_once(ws):
     data["permissions"]["deny"] = [r for r in data["permissions"]["deny"] if "tag -d" not in r and "DELETE" not in r]
     settings.write_text(json.dumps(data))
     first = migrate.run(ws)
-    assert [r["migration"] for r in first["ran"]] == ["0001-v3-baseline", "0002-v3.1-locks", "0003-v3.2-okf-quoting"]
+    assert [r["migration"] for r in first["ran"]] == ["0001-v3-baseline", "0002-v3.1-locks", "0003-v3.2-okf-quoting", "0004-v3.2-goal-and-review"]
     assert all(r["applied"] for r in first["ran"])
     assert not (ws / "CHANGELOG-FOR-ED.md").exists() and glossary.read_text().startswith("---")
     # D80: the v3.1 migration adds the missing deny rules and the two glossary terms
@@ -175,7 +175,7 @@ def test_migrate_runs_once(ws):
     assert "Bash(git tag -d:*)" in deny and "PowerShell(gh api -X DELETE:*)" in deny
     assert "**Safe point**" in glossary.read_text() and "**Lock**" in glossary.read_text()
     second = migrate.run(ws)
-    assert second["ran"] == [] and second["applied_total"] == 3
+    assert second["ran"] == [] and second["applied_total"] == 4
     state = json.loads((ws / ".kit" / "migrations.json").read_text())
     assert "0001-v3-baseline" in state["applied"] and "0002-v3.1-locks" in state["applied"]
 
@@ -258,6 +258,33 @@ def test_vendored_okf_skill_matches_its_pin():
     assert [p.relative_to(skill).as_posix() for p in skill.rglob("SKILL.md")] == ["SKILL.md"]
     assert "okflint==" in okf.OKFLINT and (KIT / "okf-base.yaml").exists()
 
+
+
+def test_migration_adds_goal_md_and_swaps_old_lines(ws):
+    import importlib.util
+    packets.explore_new(ws, "An app", None)
+    g = packets.goal_graduate(ws, "an-app", "Ship it", None)
+    (ws / "goals" / g["slug"] / "GOAL.md").unlink()  # a goal made before v3.2
+    agents = ws / "AGENTS.md"
+    new_text = agents.read_text()
+    m4_spec = importlib.util.spec_from_file_location("m4", KIT / "migrations" / "0004-v3.2-goal-and-review.py")
+    m4 = importlib.util.module_from_spec(m4_spec)
+    m4_spec.loader.exec_module(m4)
+    old_text = new_text
+    for old, new in m4.ROOT_SWAPS:
+        assert new in old_text
+        old_text = old_text.replace(new, old)
+    agents.write_text(old_text)
+    project = ws / "projects" / "app" / "AGENTS.md"
+    project.parent.mkdir(parents=True)
+    project.write_text("# App\n\n" + m4.PROJECT_SWAPS[0][0] + "\n")
+    note = m4.apply(ws)
+    assert g["slug"] in note and "AGENTS.md" in note and "projects/app/AGENTS.md" in note
+    assert agents.read_text() == new_text
+    assert "mattpocock-skills:code-review" in project.read_text()
+    goal_md = (ws / "goals" / g["slug"] / "GOAL.md").read_text()
+    assert f"./goals/{g['slug']}/GOAL.md" in goal_md and "Ship it" in goal_md and "{{" not in goal_md
+    assert m4.apply(ws) == "nothing to change"
 
 if __name__ == "__main__":
     sys.exit(pytest.main([__file__, "-q"]))

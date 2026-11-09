@@ -46,6 +46,9 @@ def test_exploration_to_goal(ws):
     assert "Start a security company" in index and "What does a license cost?" in index
     g = packets.goal_graduate(ws, e["slug"], "Price the first month", "one sentence")
     assert (ws / "goals" / g["slug"] / "STEPS.md").exists()
+    goal_md = (ws / "goals" / g["slug"] / "GOAL.md").read_text()  # D84: what /goal follows
+    assert f"/goal follow the instructions in ./goals/{g['slug']}/GOAL.md" in goal_md
+    assert "{{" not in goal_md and f"kit goal set {g['slug']} --status done" in goal_md
     assert "Price the first month" in (ws / "goals" / "INDEX.md").read_text()
     assert packets.read_state(ws / "explorations" / e["slug"])["goals"] == [g["slug"]]
     with pytest.raises(KitError):
@@ -215,6 +218,8 @@ def test_profile_write_matches_example(ws):
 def test_profile_write_rejects_bad_skill_names(ws):
     with pytest.raises(KitError):
         profile.write(ws, {"name": "A", "about": "b", "skills": [{"name": "Bad Name", "description": "d", "body": "b"}]})
+    with pytest.raises(KitError, match="built-in"):  # D84: a project skill named goal would replace /goal
+        profile.write(ws, {"name": "A", "about": "b", "skills": [{"name": "goal", "description": "d", "body": "b"}]})
 
 
 # ---------------------------------------------------------------- merge gate
@@ -498,6 +503,41 @@ def test_template_settings_deny_destructive_actions():
                 "gh api * rulesets*", "git update-ref -d:*"):
         assert f"Bash({pat})" in deny and f"PowerShell({pat})" in deny, pat
 
+
+# ---------------------------------------------------------------- skill routing (D83)
+
+def _kit_texts():
+    roots = [KIT / "skills", KIT / "template", KIT / "templates", KIT / "caretaker"]
+    for root in roots:
+        for path in root.rglob("*"):
+            if path.is_file() and path.suffix in (".md", ".tmpl") and "upstream" not in path.parts:
+                yield path
+
+
+def test_review_skill_is_always_named_in_full():
+    """D83: Claude Code has a built-in `code-review`, so a bare name never
+    reaches Matt Pocock's spec review. Desktop text names
+    `mattpocock-skills:code-review`; the cloud caretaker names the built-in."""
+    bare = []
+    for path in _kit_texts():
+        for n, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+            for m in re.finditer(r"code-review", line):
+                before = line[max(0, m.start() - 18):m.start()]
+                if before.endswith("mattpocock-skills:") or before.endswith("/") or "built-in" in line:
+                    continue
+                bare.append(f"{path.relative_to(KIT)}:{n}")
+    assert bare == [], bare
+
+
+
+def test_goals_are_made_by_make_goal_and_run_by_slash_goal():
+    """D84: the kit's skill makes packets; Claude Code's built-in /goal runs
+    them. A kit skill named `goal` would sit beside /goal and confuse both."""
+    assert not (KIT / "skills" / "goal").exists() and (KIT / "skills" / "make-goal" / "SKILL.md").exists()
+    assert "name: make-goal" in (KIT / "skills" / "make-goal" / "SKILL.md").read_text()
+    stale = [f"{p.relative_to(KIT)}" for p in _kit_texts() if re.search(r"`goal` skill|the goal skill", p.read_text(encoding="utf-8"))]
+    assert stale == [], stale
+    assert "/goal follow the instructions in ./goals/<slug>/GOAL.md" in (KIT / "template" / "AGENTS.md").read_text()
 
 if __name__ == "__main__":
     sys.exit(pytest.main([__file__, "-q"]))

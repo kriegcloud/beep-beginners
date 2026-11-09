@@ -971,6 +971,67 @@ this repository public"), so the locks come in three layers.
   BigQuery producer, not a maintenance tool). A per-type okflint profile
   (would reject legitimate open types such as an imported `recipe`).
 
+### D83. The review before landing is named in full [2026-11-09]
+
+- **Finding.** Claude Code ships a built-in `code-review` skill (a bug hunt
+  at an effort level). A bare Claude Code 2.1.319 lists it with no plugins
+  installed, and with a plugin named `mattpocock-skills` beside it the
+  session lists both `mattpocock-skills:code-review` and `code-review`.
+  Plugin skills are namespaced, so the kit's bare `code-review` (project
+  skill, template and project `AGENTS.md`, both caretaker prompts) reached
+  the built-in on the desktop too, never Matt Pocock's two-axis review
+  (standards, and the spec in the goal packet) that D59 and D70 meant. In
+  the cloud no marketplace plugin loads at all (D45; the 2026-11-09 proof
+  saw an empty `installed_plugins.json`), so Matt's review isn't there.
+- **Answer.** Desktop text names `mattpocock-skills:code-review`, with
+  `main` as the fixed point and the packet's `specs/` as the spec. The cloud
+  caretaker names the built-in on purpose: `/code-review medium` on its
+  uncommitted change. Its one fix attempt is a lint or test repair with no
+  spec to check, and the built-in is the review that exists there. A test
+  fails on any bare `code-review` in kit text; migration
+  `0004-v3.2-goal-and-review` swaps the old lines in existing workspaces
+  where they are unchanged.
+- **Rejected.** Cloning mattpocock/skills as a third repository for cloud
+  runs (another moving part for a review that has no spec to read).
+  Prefixing every Matt skill (`tdd`, `retro`, `wayfinder` and the rest have
+  no built-in twin; the test guards the one that does).
+
+### D84. `make-goal` makes the packet; Claude Code's `/goal` runs it [2026-11-09]
+
+- **Question.** The kit had a `goal` skill that both made and worked goals,
+  beside Claude Code's built-in `/goal` command. Benjamin: the packet is the
+  point; making one is a skill like `/make-goal`, and running one is the
+  built-in, as `/goal follow the instructions in ./goals/<goal-name>/GOAL.md`.
+- **What `/goal` is** (code.claude.com/docs/en/goal): a session-scoped
+  completion condition, up to 4,000 characters, checked after every turn by
+  a small model through a prompt-based Stop hook; Claude keeps taking turns
+  until the checker says it holds. The checker calls no tools, so it judges
+  only what Claude has said. `/goal` alone shows status, `/goal clear` stops
+  it. It doesn't change the permission mode; auto mode makes it unattended.
+  Documented for the CLI, `claude -p` and the Desktop app. A project or
+  personal skill with a built-in's name replaces it; a plugin skill doesn't.
+- **Answer.** The `goal` skill becomes `make-goal`: graduate from an
+  exploration, write "Done means" lines a stranger could check from what
+  Claude says, write `STEPS.md`, save, and hand the user the `/goal` line.
+  It never works the steps. `kit goal graduate` now also writes `GOAL.md`
+  from `templates/goal/GOAL.md`: the start, the per-step loop (with the
+  D83 review), the stop-and-hand-back rules, the finish (retro, `kit goal set
+  --status done`), and one required status line ending every turn (`Goal
+  done:`, `Waiting for you:`, `Your turn:`, `Stuck:`, `Pausing:`, `Next:`),
+  so the checker can see both progress and a legitimate stop. A soft cap
+  (land and pause after about twenty turns) stands in for the turn limit
+  `/goal` doesn't have. The user's personal skills may not take a built-in's
+  name (`goal`, `code-review` and others in `profile.RESERVED_SKILL_NAMES`).
+  Migration 0004 adds `GOAL.md` to existing goal packets and updates the
+  `AGENTS.md` line that named the old skill.
+- **Not verified yet.** `/goal` on Windows and in the Desktop Code tab on the
+  VM, and whether the checker accepts `Waiting for you:` as "followed" or
+  keeps prompting; the next VM proof runs one goal end to end. Cloud runs
+  never start goals.
+- **Rejected.** Keeping a kit skill that works goals (two ways to run one).
+  Putting the whole instruction set in the `/goal` argument (the user would
+  carry 4,000 characters; the file can change with the goal).
+
 ## Facts from research that shape the build
 
 - 1Password Individual is about $36 for the first year, then about $48 a year.

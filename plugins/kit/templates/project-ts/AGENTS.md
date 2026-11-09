@@ -27,8 +27,8 @@ never raw:
 
 - Bigger than one session: `wayfinder`, tracked as markdown in the goal packet.
 - Every change: `to-spec`, then `implement-spec`; the spec lives in the goal packet.
-- While building: `tdd`. Before landing: `code-review`, findings fixed or
-  waived in the packet.
+- While building: `tdd`. Before landing: `mattpocock-skills:code-review`
+  (named in full), findings fixed or waived in the packet.
 - When the goal closes: `retro`, written into the packet.
 
 ## Data

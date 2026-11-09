@@ -151,7 +151,7 @@ def goal_graduate(root: Path, slug: str, title: str, mission: str | None) -> dic
     parent.mkdir(exist_ok=True)
     folder = unique_folder(parent, slugify(title))
     shutil.copytree(TEMPLATES / "goal", folder)
-    _fill_folder(folder, {"title": title, "date": today(), "mission": mission or title,
+    _fill_folder(folder, {"title": title, "slug": folder.name, "date": today(), "mission": mission or title,
                           "exploration_title": src_state["title"], "exploration_slug": src.name})
     state = {"kind": "goal", "slug": folder.name, "title": title, "status": "active",
              "exploration": src.name, "created": today(), "projects": []}
