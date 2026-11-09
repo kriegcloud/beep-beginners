@@ -810,6 +810,23 @@ the `caretaker-health` chore.
   remaining `urllib` calls in `tools.py` read URLs from the kit's own
   `tools.yaml` and carry a Semgrep annotation that says so.
 
+### D79. v3.0.0 released [2026-11-09]
+
+- **Merge.** Benjamin squash-merged kriegcloud/beep-beginners pull request 1
+  (`v3` to `main`, 26 commits) himself at 07:20 UTC as `aa91599`, after every
+  check was green (D78). The agent session's own permission classifier had
+  refused the merge call as a merge without review, and the route stayed
+  honest: no other tool was used to get around it.
+- **Release (D72).** `stable` fast-forwarded to `main` at the commit that
+  carries this entry, tagged `v3.0.0`. Workspaces track `stable` through the
+  marketplace `ref`, so this is the first version a friend's workspace sees;
+  the migration `0001-v3-baseline` runs once on each.
+- **Left open, on the record.** The Dependabot within-a-day merge, the D76
+  proof item (the VM's own agent running `caretaker-setup` end to end), a run
+  rejected at the usage limit, and deleting the three disabled proof routines
+  on the operator's account. The VM lock and the test repository stay as they
+  are until the operator says otherwise.
+
 ## Facts from research that shape the build
 
 - 1Password Individual is about $36 for the first year, then about $48 a year.
