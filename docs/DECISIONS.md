@@ -790,6 +790,26 @@ the `caretaker-health` chore.
   for the operator's Claude usage window to reset. A run rejected at the
   usage limit was not observed.
 
+### D78. The pull request's checks, and the dead routes removed [2026-11-09]
+
+- **Evidence.** kriegcloud/beep-beginners pull request 1 (`v3` to `main`),
+  head `2a872c5`: gitleaks, Semgrep, zizmor, osv-scanner, the Python tests,
+  the plugin validate and the project templates build all green, state
+  `clean`.
+- **Changed by the checks.** `.gitleaks.toml` allowlists `plugins/kit/tests/`,
+  where made-up tokens are staged on purpose to prove the guard blocks them;
+  the kit's own workflow for workspaces does not get this allowlist. The
+  templates job sets a git identity before it commits. The plugin validate
+  step downloads Claude's installer to a file and runs that, instead of
+  piping the download into a shell.
+- **Dead routes removed, not waived.** Semgrep flagged the download bootstrap
+  (`kit caretaker fetch`, the `MANIFEST`) and the `plugin` route. Both are
+  refused by the cloud (D76, D77), so they went rather than earning a
+  waiver; D45 as amended leaves the second repository as the only route, and
+  `kit caretaker install` takes no route other than `repo`. The three
+  remaining `urllib` calls in `tools.py` read URLs from the kit's own
+  `tools.yaml` and carry a Semgrep annotation that says so.
+
 ## Facts from research that shape the build
 
 - 1Password Individual is about $36 for the first year, then about $48 a year.
