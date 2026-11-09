@@ -421,7 +421,7 @@ def safe_tag(slug: str, date: str | None = None, root: Path | None = None) -> di
     sha = main_sha(slug)
     if not sha:
         raise KitError("main has no commits on GitHub yet")
-    if any(t["tag"] == name for t in list_safe_tags(slug)):
+    if any(t["tag"] == name for t in list_safe_tags(slug, root)):
         return {"tag": name, "sha": sha, "created": False}
     try:
         api(f"repos/{slug}/git/refs", "POST", raw={"ref": f"refs/tags/{name}", "sha": sha})
@@ -439,10 +439,25 @@ def safe_tag(slug: str, date: str | None = None, root: Path | None = None) -> di
     return {"tag": name, "sha": sha, "created": True, "via": "push"}
 
 
-def list_safe_tags(slug: str) -> list[dict]:
-    refs = api(f"repos/{slug}/git/matching-refs/tags/{SAFE_PREFIX}") or []
-    tags = [{"tag": r["ref"].removeprefix("refs/tags/"), "sha": r["object"]["sha"]} for r in refs]
-    return sorted(tags, key=lambda t: t["tag"])
+def list_safe_tags(slug: str, root: Path | None = None) -> list[dict]:
+    """Safe points on GitHub. No trailing slash on the path: the cloud proxy
+    answers "Request path could not be canonicalized" to one (2026-11-09).
+    With a `root`, a refused read falls back to `git ls-remote`."""
+    try:
+        refs = api(f"repos/{slug}/git/matching-refs/tags/{SAFE_PREFIX.rstrip('/')}") or []
+        tags = [{"tag": r["ref"].removeprefix("refs/tags/"), "sha": r["object"]["sha"]} for r in refs]
+    except KitError:
+        if root is None:
+            raise
+        out = git(root, "ls-remote", "--tags", "origin", f"refs/tags/{SAFE_PREFIX}*", timeout=60)
+        if out.returncode != 0:
+            raise
+        tags = []
+        for line in out.stdout.splitlines():
+            sha, _, ref = line.partition("\t")
+            if ref and not ref.endswith("^{}"):
+                tags.append({"tag": ref.removeprefix("refs/tags/"), "sha": sha})
+    return sorted((t for t in tags if t["tag"].startswith(SAFE_PREFIX)), key=lambda t: t["tag"])
 
 
 def prune_safe_tags(slug: str, keep_days: int = SAFE_KEEP_DAYS, today: str | None = None,
@@ -454,7 +469,7 @@ def prune_safe_tags(slug: str, keep_days: int = SAFE_KEEP_DAYS, today: str | Non
     import datetime as dt
     now = dt.date.fromisoformat(today) if today else dt.date.today()
     pruned, protected, kept = [], [], []
-    for t in list_safe_tags(slug):
+    for t in list_safe_tags(slug, root):
         try:
             when = dt.date.fromisoformat(t["tag"].removeprefix(SAFE_PREFIX))
         except ValueError:

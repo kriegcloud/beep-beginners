@@ -323,7 +323,8 @@ class FakeGitHub:
             return {}
         if path == "repos/o/r/git/ref/heads/main":
             return {"object": {"sha": "f" * 40}}
-        if path.startswith("repos/o/r/git/matching-refs/tags/safe/"):
+        if path.startswith("repos/o/r/git/matching-refs/tags/safe"):
+            assert not path.endswith("/"), "no trailing slash: the cloud proxy refuses it"
             return [{"ref": f"refs/tags/{t}", "object": {"sha": "a" * 40}} for t in self.tags]
         if path == "repos/o/r/git/refs" and method == "POST":
             tag = raw["ref"].removeprefix("refs/tags/")
@@ -440,6 +441,18 @@ def test_safe_point_falls_back_to_a_push_when_the_proxy_refuses(monkeypatch, tmp
     assert ("push", "-q", "origin", f"{'f' * 40}:refs/tags/safe/2026-11-09") in pushes
     with pytest.raises(KitError):
         github.safe_tag("o/r", "2026-11-10")  # no root: the refusal is reported, not hidden
+    # a refused listing falls back to ls-remote when a root is given
+    def refuse_list(path, method="GET", fields=None, raw=None, **kw):
+        if "matching-refs" in path:
+            raise KitError("GitHub GET failed: Request path could not be canonicalized.")
+        return proxy(path, method, fields, raw, **kw)
+    monkeypatch.setattr(github, "api", refuse_list)
+    monkeypatch.setattr(github, "git", lambda root, *a, **k: subprocess.CompletedProcess(a, 0, "a" * 40 + "\trefs/tags/safe/2026-10-01\n" + "b" * 40 + "\trefs/tags/safe/2026-11-09\n", ""))
+    assert [t["tag"] for t in github.list_safe_tags("o/r", root=tmp_path)] == ["safe/2026-10-01", "safe/2026-11-09"]
+    with pytest.raises(KitError):
+        github.list_safe_tags("o/r")
+    monkeypatch.setattr(github, "api", proxy)
+    monkeypatch.setattr(github, "git", fake_git)
     fake.tags.append("safe/2026-01-01")
     pruned = github.prune_safe_tags("o/r", today="2026-11-09", root=tmp_path)
     assert pruned["pruned"] == ["safe/2026-01-01"] and ("push", "-q", "origin", "--delete", "refs/tags/safe/2026-01-01") in pushes

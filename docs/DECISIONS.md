@@ -895,7 +895,11 @@ this repository public"), so the locks come in three layers.
   refuses API writes to `git/refs` ("Write access to this GitHub API path is
   not permitted through this proxy") while `git push` works, so the safe
   point and its trimming fall back to a push from the clone in the sandbox.
-  The push fallback is tested but not yet re-proved from the cloud.
+  A second cloud run found the proxy also refuses a trailing slash in an
+  API path ("Request path could not be canonicalized"); the listing lost
+  its slash and gained an `ls-remote` fallback. The push fallback is tested
+  but not yet seen from the cloud: it needs a day whose safe point does not
+  exist yet.
 
 ## Facts from research that shape the build
 
