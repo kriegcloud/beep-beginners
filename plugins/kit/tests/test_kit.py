@@ -404,7 +404,7 @@ def test_safe_points_create_once_and_prune(monkeypatch):
     fake = FakeGitHub(tags=["safe/2026-09-01", "safe/2026-11-01", "safe/not-a-date"])
     monkeypatch.setattr(github, "api", fake)
     made = github.safe_tag("o/r", "2026-11-09")
-    assert made == {"tag": "safe/2026-11-09", "sha": "f" * 40, "created": True}
+    assert made == {"tag": "safe/2026-11-09", "sha": "f" * 40, "created": True, "via": "api"}
     again = github.safe_tag("o/r", "2026-11-09")
     assert again["created"] is False
     pruned = github.prune_safe_tags("o/r", today="2026-11-09")
@@ -416,6 +416,33 @@ def test_safe_points_create_once_and_prune(monkeypatch):
     status = github.protection_status("o/r")
     assert status["squash_only"] and status["rulesets_available"] is False and status["enforced"] is False
     assert [p["tag"] for p in status["safe_points"]][-1] == "safe/not-a-date"
+
+
+def test_safe_point_falls_back_to_a_push_when_the_proxy_refuses(monkeypatch, tmp_path):
+    fake = FakeGitHub()
+    real_call = fake.__call__
+
+    def proxy(path, method="GET", fields=None, raw=None, **kw):
+        if path == "repos/o/r/git/refs" and method == "POST":
+            raise KitError("GitHub POST repos/o/r/git/refs failed: Write access to this GitHub API path is not permitted through this proxy.")
+        if path.startswith("repos/o/r/git/refs/tags/") and method == "DELETE":
+            raise KitError("GitHub DELETE failed: Write access to this GitHub API path is not permitted through this proxy.")
+        return real_call(path, method, fields, raw, **kw)
+    monkeypatch.setattr(github, "api", proxy)
+    pushes = []
+
+    def fake_git(root, *args, **kw):
+        pushes.append(args)
+        return subprocess.CompletedProcess(args, 0, "", "")
+    monkeypatch.setattr(github, "git", fake_git)
+    made = github.safe_tag("o/r", "2026-11-09", root=tmp_path)
+    assert made["created"] and made["via"] == "push"
+    assert ("push", "-q", "origin", f"{'f' * 40}:refs/tags/safe/2026-11-09") in pushes
+    with pytest.raises(KitError):
+        github.safe_tag("o/r", "2026-11-10")  # no root: the refusal is reported, not hidden
+    fake.tags.append("safe/2026-01-01")
+    pruned = github.prune_safe_tags("o/r", today="2026-11-09", root=tmp_path)
+    assert pruned["pruned"] == ["safe/2026-01-01"] and ("push", "-q", "origin", "--delete", "refs/tags/safe/2026-01-01") in pushes
 
 
 def test_merge_pr_posts_review_status_for_bots(monkeypatch):

@@ -93,7 +93,7 @@ def idle(root: Path, garden: bool = False) -> dict:
     result: dict = {}
     if not garden:
         try:
-            result["safe_point"] = github.safe_tag(slug)  # D80: the daily safe point, idle or not
+            result["safe_point"] = github.safe_tag(slug, root=root)  # D80: the daily safe point, idle or not
         except KitError as exc:
             reasons.append(f"could not write today's safe point: {exc}")
     prs = github.list_prs(slug)
@@ -167,7 +167,7 @@ def sweep(root: Path, dry_run: bool = False) -> dict:
         report["notes"].append(f"could not read Dependabot alerts: {exc}")
     if not dry_run:
         try:  # D80: the recovery net, one tag a day, trimmed after 30 days
-            report["safe_point"] = {**github.safe_tag(slug), **github.prune_safe_tags(slug)}
+            report["safe_point"] = {**github.safe_tag(slug, root=root), **github.prune_safe_tags(slug, root=root)}
         except KitError as exc:
             report["notes"].append(f"could not keep the safe point: {exc}")
     report["chores"] = chores.run_due(root, "cloud", max_seconds=300, limit=None)

@@ -879,9 +879,23 @@ this repository public"), so the locks come in three layers.
   skill says it in plain words. Glossary: "Lock", "Safe point".
 - **Migration 0002-v3.1-locks** adds the deny rules and the two glossary
   terms to existing workspaces; the GitHub side is the `locks` chore's job.
-- **Proof.** The Free path on `benjamintoppold-ai/workspace` (private, Free);
-  the ruleset path on a public repository made under the test account for
-  the proof and deleted after, both recorded in `tests/cloud/evidence/`.
+- **Proof (2026-11-09, `tests/cloud/evidence/2026-11-09-locks.md`).** The
+  Free path on `benjamintoppold-ai/workspace` (private, Free): squash-only
+  applied, one Pro line asked once, safe point made, a mistake landed and
+  undone as a new commit, the guard refusing tag and ref deletes and
+  settings writes. The ruleset path on a public repository under the test
+  account, made and deleted by Benjamin because the agent session's
+  classifier refuses to create a public repository: all three rulesets
+  created, `RepositoryRole` accepted as a bypass actor on a user-owned
+  repository, the owner's direct push to main passing with GitHub's
+  "Bypassed rule violations" notice, a force push refused with GH013, a
+  branch delete refused, undo working. Three things changed by the proof:
+  `kit undo` treats open project branches as normal, not as unsaved work;
+  `kit undo list` matches a safe point by content; and the cloud proxy
+  refuses API writes to `git/refs` ("Write access to this GitHub API path is
+  not permitted through this proxy") while `git push` works, so the safe
+  point and its trimming fall back to a push from the clone in the sandbox.
+  The push fallback is tested but not yet re-proved from the cloud.
 
 ## Facts from research that shape the build
 

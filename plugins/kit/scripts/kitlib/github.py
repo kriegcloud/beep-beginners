@@ -406,22 +406,37 @@ def main_sha(slug: str) -> str:
     return ref.get("object", {}).get("sha", "")
 
 
-def safe_tag(slug: str, date: str | None = None) -> dict:
+PROXY_REFUSED = "not permitted through this proxy"
+
+
+def safe_tag(slug: str, date: str | None = None, root: Path | None = None) -> dict:
     """A lightweight tag `safe/YYYY-MM-DD` at main's tip, once a day; the
-    recovery net `kit undo` restores from."""
+    recovery net `kit undo` restores from. Over REST where that is allowed;
+    the cloud sandbox's GitHub proxy refuses API writes to git/refs ("Write
+    access to this GitHub API path is not permitted through this proxy", seen
+    2026-11-09) while `git push` from the clone works, so with a `root` the
+    tag goes up as a push of the commit id to the tag ref."""
     import datetime as dt
     name = SAFE_PREFIX + (date or dt.date.today().isoformat())
     sha = main_sha(slug)
     if not sha:
         raise KitError("main has no commits on GitHub yet")
+    if any(t["tag"] == name for t in list_safe_tags(slug)):
+        return {"tag": name, "sha": sha, "created": False}
     try:
         api(f"repos/{slug}/git/refs", "POST", raw={"ref": f"refs/tags/{name}", "sha": sha})
-        created = True
+        return {"tag": name, "sha": sha, "created": True, "via": "api"}
     except KitError as exc:
-        if "already exists" not in str(exc).lower():
+        text = str(exc).lower()
+        if "already exists" in text:
+            return {"tag": name, "sha": sha, "created": False}
+        if root is None or PROXY_REFUSED not in text:
             raise
-        created = False
-    return {"tag": name, "sha": sha, "created": created}
+    git(root, "fetch", "-q", "origin", "main", timeout=120)
+    push = git(root, "push", "-q", "origin", f"{sha}:refs/tags/{name}", timeout=120)
+    if push.returncode != 0:
+        raise KitError(f"could not write the safe point by API or by push: {push.stderr.strip()[-200:]}")
+    return {"tag": name, "sha": sha, "created": True, "via": "push"}
 
 
 def list_safe_tags(slug: str) -> list[dict]:
@@ -430,10 +445,12 @@ def list_safe_tags(slug: str) -> list[dict]:
     return sorted(tags, key=lambda t: t["tag"])
 
 
-def prune_safe_tags(slug: str, keep_days: int = SAFE_KEEP_DAYS, today: str | None = None) -> dict:
+def prune_safe_tags(slug: str, keep_days: int = SAFE_KEEP_DAYS, today: str | None = None,
+                    root: Path | None = None) -> dict:
     """Delete safe points older than keep_days. Where the tag ruleset is
     enforced the caretaker's token can't delete them, so they come back as
-    `protected`; the owner's own machine trims them (the protection chore)."""
+    `protected`; the owner's own machine trims them (the locks chore). With
+    a `root`, a proxy that refuses the API delete gets a push delete instead."""
     import datetime as dt
     now = dt.date.fromisoformat(today) if today else dt.date.today()
     pruned, protected, kept = [], [], []
@@ -449,8 +466,12 @@ def prune_safe_tags(slug: str, keep_days: int = SAFE_KEEP_DAYS, today: str | Non
         try:
             api(f"repos/{slug}/git/refs/tags/{t['tag']}", "DELETE")
             pruned.append(t["tag"])
-        except KitError:
-            protected.append(t["tag"])
+        except KitError as exc:
+            if root is not None and PROXY_REFUSED in str(exc).lower():
+                gone = git(root, "push", "-q", "origin", "--delete", f"refs/tags/{t['tag']}", timeout=120)
+                (pruned if gone.returncode == 0 else protected).append(t["tag"])
+            else:
+                protected.append(t["tag"])
     return {"pruned": pruned, "protected": protected, "kept": kept}
 
 
