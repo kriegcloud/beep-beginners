@@ -43,6 +43,17 @@ deleted afterwards.
   PR, merged the green reviewed PR #2 (squash `0f3b81a`), refused PR #3 for a
   missing `kit/review` verdict. The cloud runs reuse that gate.
 
+- Creating the first proof routine with Benjamin's yes was refused by the
+  routines API: `403 repo_access_denied, "You don't have access to a repository
+  this scheduled task uses."` Collaborator access on GitHub is not what the
+  routines service checks; it checks the claude.ai account's GitHub
+  connection. With the GitHub App connection that means the Claude GitHub App
+  must be installed on the repository itself (by the repository's owner, the
+  test account, in the VM's browser), which the webhook trigger needs anyway;
+  with a `/web-setup` connection it means the connected `gh` token can reach
+  the repository. For a real friend both are their own account, so onboarding's
+  caretaker-setup step installs the App on the workspace first (D68).
+
 ## Routes to try, in order (D45)
 
 | Route | How the kit gets in | What it costs |
