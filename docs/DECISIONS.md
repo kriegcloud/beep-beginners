@@ -757,6 +757,39 @@ the `caretaker-health` chore.
   alerts ("Resource not accessible by integration"), so the kit counts
   unreadable alerts as none and says so.
 
+### D77. The cloud proof, and D45 amended [2026-11-09]
+
+- **Evidence.** `tests/cloud/evidence/2026-11-09.md`: three proof routines on
+  the operator's account against `benjamintoppold-ai/workspace`, nine runs,
+  every run id and commit recorded, no secrets.
+- **What the cloud proved.** The morning sweep merged a green reviewed pull
+  request from the sandbox through `kit pr merge`, left an unmergeable one
+  alone and explained it as a NEEDS-YOU brief, wrote the Monday note, landed
+  and pushed `main`. The PR-opened routine fired within seconds of a pull
+  request opening and merged it a minute later. The weekly gardener
+  deprecated a stale page with no sources and asked about it, folded a
+  duplicate draft into the sourced page, and left the already-nagged retro
+  item alone. Every run that hit a wall stopped the way its prompt says and
+  reported in plain words, with a push notification.
+- **D45 amended.** The kit reaches the sandbox as the task's second
+  repository, checked out at the release ref. Route 1 (routine plugin
+  fields) is dropped by the API; route 2 (download bootstrap) is refused by
+  the sandbox's auto-mode classifier. Details and the standing rule in D76.
+- **Changed by the proof.** The cloud proxy's token can't read Dependabot
+  alerts (counted as none, with a note). The sandbox clones the workspace in
+  detached HEAD, sometimes with a stale local `main`; `kit land` now checks
+  `main` out at HEAD. A squash-merged goal branch is never `main`'s
+  ancestor; the kit treats a branch whose project tree sits on `main` as
+  landed and starts the next change from `main`. Page ids may be bare names.
+  The webhook trigger body is `hook_type: app, source: github, scope_id:
+  owner/repo, events: [...]`, learned from the API's own validation; the kit
+  emits it.
+- **Not yet covered.** The Dependabot "within a day" merge waits on
+  Dependabot's daily run against an older pin left in the test repo. The D76
+  proof item (the VM's own agent running `caretaker-setup` end to end) waits
+  for the operator's Claude usage window to reset. A run rejected at the
+  usage limit was not observed.
+
 ## Facts from research that shape the build
 
 - 1Password Individual is about $36 for the first year, then about $48 a year.
