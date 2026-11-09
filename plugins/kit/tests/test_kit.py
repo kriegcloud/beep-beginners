@@ -3,7 +3,7 @@
 # dependencies = ["pytest>=8"]
 # ///
 """Packets, projects, chores, NEEDS-YOU, explain, profile, the merge gate, the
-caretaker bodies and the MANIFEST. Run: uv run --script plugins/kit/tests/test_kit.py"""
+caretaker bodies. Run: uv run --script plugins/kit/tests/test_kit.py"""
 
 from __future__ import annotations
 
@@ -261,29 +261,25 @@ def test_actions_run_id():
 # ---------------------------------------------------------------- caretaker
 
 def test_install_bodies_shape():
-    bodies = caretaker.install_bodies("https://github.com/o/ws", "env_1", "7 13 * * *", route="fetch", ref="main")
+    bodies = caretaker.install_bodies("https://github.com/o/ws", "env_1", "7 13 * * *", ref="v3")
     sweep = bodies["sweep"]
     assert sweep["cron_expression"] == "7 13 * * *" and "cron_expression" not in bodies["pr_opened"]
     assert bodies["garden"]["cron_expression"]
     ctx = sweep["job_config"]["ccr"]["session_context"]
-    assert ctx["model"] == "claude-opus-5-5" and ctx["sources"] == [{"git_repository": {"url": "https://github.com/o/ws"}}]
+    assert ctx["model"] == "claude-opus-5-5"
+    assert ctx["sources"] == [{"git_repository": {"url": "https://github.com/o/ws"}},
+                              {"git_repository": {"url": "https://github.com/kriegcloud/beep-beginners"}}]
     for name in ("sweep", "pr_opened", "garden"):
         text = bodies[name]["job_config"]["ccr"]["events"][0]["data"]["message"]["content"]
-        assert caretaker.NEVER in text and "raw.githubusercontent.com/kriegcloud/beep-beginners/main" in text
-        assert "{{" not in text and "kit caretaker idle" in text or name == "pr_opened"
-    assert sweep["clear_mcp_connections"] is True
-    repo = caretaker.install_bodies("https://github.com/o/ws", "env_1", "7 13 * * *")  # the default route
-    assert len(repo["sweep"]["job_config"]["ccr"]["session_context"]["sources"]) == 2
-    repo_prompt = repo["sweep"]["job_config"]["ccr"]["events"][0]["data"]["message"]["content"]
-    assert "checkout -q stable" in repo_prompt and "curl" not in repo_prompt
-    plugin = caretaker.install_bodies("https://github.com/o/ws", "env_1", "7 13 * * *", route="plugin", ref="v3")
-    assert plugin["sweep"]["enabled_plugins"] == ["kit@beep-beginners"]
-    assert plugin["sweep"]["extra_marketplaces"][0]["source"]["ref"] == "v3"
+        assert caretaker.NEVER in text and "checkout -q v3" in text and "{{" not in text
+        assert "curl" not in text and "raw.githubusercontent" not in text  # no download bootstrap (D76)
+        assert "kit caretaker idle" in text or name == "pr_opened"
+    assert sweep["clear_mcp_connections"] is True and "enabled_plugins" not in sweep
+    assert bodies["webhook"] == {"hook_type": "app", "source": "github", "scope_id": "o/ws",
+                                 "events": ["pull_request.opened"], "routine_trigger_id": "<id of pr_opened once created>"}
     actions = caretaker.install_bodies("https://github.com/o/ws", "", "7 13 * * *", runner="actions")
     assert "anthropics/claude-code-action" in actions["sweep"] and "CLAUDE_CODE_OAUTH_TOKEN" in actions["sweep"]
     assert "pull_request:" in actions["pr_opened"]
-    assert bodies["webhook"] == {"hook_type": "app", "source": "github", "scope_id": "o/ws",
-                                 "events": ["pull_request.opened"], "routine_trigger_id": "<id of pr_opened once created>"}
 
 
 def test_local_time_to_utc_cron():
@@ -298,30 +294,6 @@ def test_fix_budget(ws):
     assert not caretaker.fix_allowed(ws)
     caretaker.record_routines(ws, {"sweep": "trig_1", "pr_opened": "trig_2", "garden": ""}, plan="max5")
     assert caretaker.pause_info(ws)["routines"] == {"sweep": "trig_1", "pr_opened": "trig_2"}
-
-
-# ---------------------------------------------------------------- manifest
-
-def manifest_files() -> list[str]:
-    skip = {"tests", "examples", "__pycache__", ".pytest_cache"}
-    files = []
-    for path in sorted(KIT.rglob("*")):
-        rel = path.relative_to(KIT)
-        if path.is_dir() or any(part in skip for part in rel.parts) or rel.name == "MANIFEST" or rel.suffix == ".pyc":
-            continue
-        files.append(rel.as_posix())
-    return files
-
-
-def test_manifest_lists_every_plugin_file():
-    expected = manifest_files()
-    path = KIT / "MANIFEST"
-    if os.environ.get("KIT_WRITE_MANIFEST") == "1":
-        path.write_text("# Every file the caretaker fetches from raw.githubusercontent.com (kit caretaker fetch).\n"
-                        "# Regenerate: KIT_WRITE_MANIFEST=1 uv run --script plugins/kit/tests/test_kit.py\n"
-                        + "\n".join(expected) + "\n")
-    listed = [line for line in path.read_text().splitlines() if line and not line.startswith("#")]
-    assert listed == expected, "MANIFEST is out of date; regenerate with KIT_WRITE_MANIFEST=1"
 
 
 if __name__ == "__main__":

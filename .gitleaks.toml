@@ -1,0 +1,12 @@
+# gitleaks configuration for the kit repository itself. The workspace template
+# ships no config: a friend's workspace scans everything.
+title = "beep-beginners"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "The kit's tests stage made-up tokens on purpose, to prove the guard blocks them."
+paths = [
+  '''plugins/kit/tests/.*''',
+]

@@ -26,7 +26,6 @@
   kit security enable
   kit caretaker idle [--garden] | sweep [--dry-run] | pr <n> [--max-seconds N] | garden [--dry-run]
   kit caretaker fix-used | record --sweep ID --pr ID --garden ID [--runner R] [--plan P] | pause
-  kit caretaker fetch --into DIR [--ref REF]
   kit caretaker install --workspace URL --environment ID --cron-utc EXPR [--garden-cron-utc EXPR] [--route repo] [--runner cloud|actions] [--ref stable]
   kit hook guard | session-start | session-end       (called from hooks.json)
 
@@ -40,28 +39,13 @@ import argparse
 import json
 import os
 import sys
-import urllib.request
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 
-
-# ---------------------------------------------------------------- bootstrap (no kitlib yet)
-
-def fetch_kit(into: Path, ref: str) -> dict:
-    """Download the plugin from raw.githubusercontent.com using its MANIFEST.
-    Runs before kitlib exists, so it imports nothing from it."""
-    base = f"https://raw.githubusercontent.com/kriegcloud/beep-beginners/{ref}/plugins/kit/"
-    with urllib.request.urlopen(base + "MANIFEST", timeout=60) as resp:
-        manifest = resp.read().decode("utf-8")
-    files = [line.strip() for line in manifest.splitlines() if line.strip() and not line.startswith("#")]
-    into.mkdir(parents=True, exist_ok=True)
-    for rel in files:
-        dest = into / rel
-        dest.parent.mkdir(parents=True, exist_ok=True)
-        with urllib.request.urlopen(base + rel, timeout=60) as resp:
-            dest.write_bytes(resp.read())
-    return {"into": str(into), "ref": ref, "files": len(files), "kit": str(into / "scripts" / "kit.py")}
+# There is no download bootstrap on purpose (D76): the cloud sandbox refuses to
+# run code pulled from the internet, so the caretaker gets the kit as the
+# task's second repository, cloned by the platform.
 
 
 # ---------------------------------------------------------------- argument parsing
@@ -169,11 +153,9 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_parser("fix-used"); s.add_parser("pause")
     q = s.add_parser("record"); q.add_argument("--sweep", default=""); q.add_argument("--pr", default=""); q.add_argument("--garden", default="")
     q.add_argument("--runner", default="cloud"); q.add_argument("--plan")
-    q = s.add_parser("fetch"); q.add_argument("--into", type=Path, required=True); q.add_argument("--ref", default="main")
     q = s.add_parser("install"); q.add_argument("--workspace", required=True); q.add_argument("--environment", default="")
     q.add_argument("--cron-utc", required=True); q.add_argument("--garden-cron-utc")
-    q.add_argument("--route", default="repo", choices=["plugin", "fetch", "repo"],
-                   help="repo is the only route that runs in the cloud (D45 as amended); plugin and fetch stay for the record")
+    q.add_argument("--route", default="repo", choices=["repo"], help="the kit as the task's second repository (D45 as amended)")
     q.add_argument("--runner", default="cloud", choices=["cloud", "actions"]); q.add_argument("--ref", default="stable")
 
     p = sub.add_parser("hook"); p.add_argument("event", choices=["guard", "session-start", "session-end"])
@@ -183,9 +165,6 @@ def build_parser() -> argparse.ArgumentParser:
 # ---------------------------------------------------------------- dispatch
 
 def dispatch(args: argparse.Namespace):
-    if args.cmd == "caretaker" and args.sub == "fetch":
-        return fetch_kit(args.into, args.ref)
-
     sys.path.insert(0, str(HERE))
     from kitlib import caretaker, chores, explain, feedback, github, landing, migrate, needs_you, okf, packets, profile, project, retro  # noqa: E402
     from kitlib.common import KitError, require_root  # noqa: E402

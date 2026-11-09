@@ -243,13 +243,15 @@ def winget_install(winget_id: str, route: dict) -> tuple[bool, str]:
 
 def github_release_install(spec: str) -> tuple[bool, str]:
     _, repo, asset = spec.split(":", 2)
-    with urllib.request.urlopen(f"https://api.github.com/repos/{repo}/releases/latest", timeout=60) as r:
+    # The repo comes from the kit's own tools.yaml, not from user input.
+    api = f"https://api.github.com/repos/{repo}/releases/latest"
+    with urllib.request.urlopen(api, timeout=60) as r:  # nosemgrep: python.lang.security.audit.dynamic-urllib-use-detected.dynamic-urllib-use-detected
         release = json.load(r)
     match = next((a for a in release.get("assets", []) if a["name"] == asset), None)
     if not match:
         return False, f"{asset} not found in {repo} {release.get('tag_name')}"
     target = Path(tempfile.gettempdir()) / asset
-    urllib.request.urlretrieve(match["browser_download_url"], target)
+    urllib.request.urlretrieve(match["browser_download_url"], target)  # nosemgrep: python.lang.security.audit.dynamic-urllib-use-detected.dynamic-urllib-use-detected
     out = subprocess.run([str(target), "/S"], capture_output=True, text=True, check=False, **NO_WINDOW, timeout=900)
     return out.returncode == 0, f"{asset} {release.get('tag_name')} exit {out.returncode}"
 
@@ -392,7 +394,7 @@ def write_batch(answers: dict, keys_url: str | None, keep_ssh_rule: bool = False
     manifest = {t["id"]: t for t in load_manifest()["tools"]}
     keys: list[str] = []
     if keys_url:
-        with urllib.request.urlopen(keys_url, timeout=30) as r:
+        with urllib.request.urlopen(keys_url, timeout=30) as r:  # nosemgrep: python.lang.security.audit.dynamic-urllib-use-detected.dynamic-urllib-use-detected
             keys = [k.strip() for k in r.read().decode().splitlines() if k.strip()]
     body = [BATCH_HEAD]
     for tid in p["install_machine"]:

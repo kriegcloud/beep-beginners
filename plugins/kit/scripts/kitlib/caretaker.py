@@ -23,7 +23,6 @@ from . import chores, feedback, github, needs_you, okf, packets, retro
 from .common import KIT_ROOT, KitError, read_json, today, write_json
 
 KIT_REPO = "kriegcloud/beep-beginners"
-RAW_BASE = f"https://raw.githubusercontent.com/{KIT_REPO}"
 PROMPTS = KIT_ROOT / "caretaker"
 MODEL = "claude-opus-5-5"
 EFFORT = "medium"
@@ -199,30 +198,23 @@ def garden(root: Path, dry_run: bool = False) -> dict:
     return report
 
 
-# ---------------------------------------------------------------- bootstrap in the sandbox
-
-def bootstrap_snippet(ref: str = "main") -> str:
-    """The shell lines a routine prompt starts with when the plugin route is
-    unavailable (D45): one file from raw.githubusercontent.com, then the rest."""
-    return (f"mkdir -p ~/kit && curl -fsSL {RAW_BASE}/{ref}/plugins/kit/scripts/kit.py -o ~/kit/kit.py "
-            f"&& uv run --script ~/kit/kit.py caretaker fetch --ref {ref} --into ~/kit/plugins/kit "
-            f"&& export KIT=~/kit/plugins/kit/scripts/kit.py")
-
+# ---------------------------------------------------------------- how the kit reaches the sandbox
 
 def kit_line(route: str, ref: str) -> str:
-    return {
-        "plugin": ("The kit plugin is enabled on this routine; every `kit ...` command below means "
-                   "`uv run --script \"${CLAUDE_PLUGIN_ROOT}/scripts/kit.py\" ...` from the kit plugin's root."),
-        "fetch": ("First get the kit:\n\n```\n" + bootstrap_snippet(ref) + "\n```\n\nThen every `kit ...` command below means "
-                  "`uv run --script $KIT ...`."),
-        "repo": ("This task has two repositories, cloned side by side under the session's starting folder: the workspace "
-                 "and `beep-beginners` (the kit, public). First `cd` into the workspace clone. The kit clone starts on its "
-                 f"default branch, so run `git -C ../beep-beginners fetch -q origin {ref} && git -C ../beep-beginners checkout -q {ref}` "
-                 "once, then set `KIT=../beep-beginners/plugins/kit/scripts/kit.py`; every `kit ...` command below means "
-                 "`uv run --script $KIT ...`. Never commit to or push the kit clone."),
-        "actions": ("The kit is checked out at `./.kit-src/plugins/kit` by the workflow; every `kit ...` command below means "
-                    "`uv run --script ./.kit-src/plugins/kit/scripts/kit.py ...`."),
-    }[route]
+    """D45 as amended (2026-11-09): only the second-repository route runs in
+    the cloud. The routine API drops plugin fields, and the sandbox's
+    auto-mode classifier refuses code downloaded from the internet, so there
+    is no plugin route and no download bootstrap here (D76)."""
+    if route == "actions":
+        return ("The kit is checked out at `./.kit-src/plugins/kit` by the workflow; every `kit ...` command below means "
+                "`uv run --script ./.kit-src/plugins/kit/scripts/kit.py ...`.")
+    if route != "repo":
+        raise KitError("the only cloud route is repo (D76)")
+    return ("This task has two repositories, cloned side by side under the session's starting folder: the workspace "
+            "and `beep-beginners` (the kit, public). First `cd` into the workspace clone. The kit clone starts on its "
+            f"default branch, so run `git -C ../beep-beginners fetch -q origin {ref} && git -C ../beep-beginners checkout -q {ref}` "
+            "once, then set `KIT=../beep-beginners/plugins/kit/scripts/kit.py`; every `kit ...` command below means "
+            "`uv run --script $KIT ...`. Never commit to or push the kit clone.")
 
 
 def prompt(name: str, workspace_url: str, route: str = "repo", ref: str = "stable") -> str:
@@ -240,16 +232,11 @@ def _event(text: str) -> dict:
 
 def install_bodies(workspace_url: str, environment_id: str, cron_utc: str, ref: str = "stable",
                    route: str = "repo", garden_cron_utc: str | None = None, runner: str = "cloud") -> dict:
-    """Routine bodies. `route="repo"` is the only one that runs in the cloud
-    (2026-11-09 proof): the API drops `extra_marketplaces`/`enabled_plugins`
-    on create (route "plugin"), and the sandbox's auto-mode classifier refuses
-    code downloaded from the internet (route "fetch", "Code from External").
-    The other two stay only so the record of why is runnable."""
+    """Routine bodies for the cloud runner (two sources: the workspace and the
+    kit, D45 as amended) or the Actions runner (D67)."""
     if runner == "actions":
         return actions_workflows(workspace_url, cron_utc, garden_cron_utc or "7 3 * * 1", ref)
-    sources = [{"git_repository": {"url": workspace_url}}]
-    if route == "repo":
-        sources.append({"git_repository": {"url": f"https://github.com/{KIT_REPO}"}})
+    sources = [{"git_repository": {"url": workspace_url}}, {"git_repository": {"url": f"https://github.com/{KIT_REPO}"}}]
     tools = ["Bash", "Read", "Write", "Edit", "Glob", "Grep", "Skill"]
 
     def body(name: str, text: str, cron: str | None) -> dict:
@@ -260,9 +247,6 @@ def install_bodies(workspace_url: str, environment_id: str, cron_utc: str, ref: 
                                           "events": [_event(text)]}}}
         if cron:
             b["cron_expression"] = cron
-        if route == "plugin":
-            b["extra_marketplaces"] = [{"name": "beep-beginners", "source": {"source": "github", "repo": KIT_REPO, "ref": ref}}]
-            b["enabled_plugins"] = ["kit@beep-beginners"]
         return b
 
     return {

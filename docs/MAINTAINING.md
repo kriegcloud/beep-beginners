@@ -19,7 +19,6 @@ plugins/
     tools.yaml                  the software list
     chores.yaml                 the chores (D52)
     examples/profile-card-reseller/   the worked example of profile -> skills (scrubbed, no real person)
-    MANIFEST                    every plugin file, for `kit caretaker fetch` (D45)
     tests/                      pytest scripts
   unslop/       the writing pass every user-facing text goes through
   helper/       help requests, helper access on/off, teach-back
@@ -34,8 +33,9 @@ A workspace's `.claude/settings.json` registers this repo as the
 `beep-beginners` marketplace with `"autoUpdate": true` and enables `kit`,
 `unslop` and `helper` by name. Plugins have no `version` field, so every
 commit to `main` counts as a new version. Claude Code checks for updates
-during a session and uses them from the next one. The caretaker fetches the
-kit fresh on every cloud run (D45). Nobody merges anything into a workspace.
+during a session and uses them from the next one. The caretaker gets the kit
+as its task's second repository, checked out at `stable`, on every cloud run
+(D45 as amended). Nobody merges anything into a workspace.
 
 Files that onboarding copied from `plugins/kit/template/` (root `AGENTS.md`,
 settings, `.gitignore`, the CI workflows) belong to the workspace after
@@ -62,10 +62,9 @@ skill, a hook, the script, `chores.yaml`), not the template.
 - The caretaker reaches the cloud sandbox as the task's second repository,
   never by downloading itself: the sandbox's auto-mode classifier refuses
   code pulled from the internet ("Code from External"), and the routine API
-  drops plugin fields on create (D76, 2026-11-09). `kit caretaker fetch` and
-  the `fetch`/`plugin` routes stay only as the runnable record of why.
-- When you add a file under `plugins/kit/`, regenerate `MANIFEST`:
-  `KIT_WRITE_MANIFEST=1 uv run --script plugins/kit/tests/test_kit.py`.
+  drops plugin fields on create (D76, 2026-11-09). The download bootstrap and
+  the plugin route were removed; the record of why is D76 and
+  `tests/cloud/evidence/2026-11-09.md`.
 
 ## Tests
 
