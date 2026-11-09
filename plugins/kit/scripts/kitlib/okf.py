@@ -15,10 +15,13 @@ file; `packets.py` rewrites it on every state change.
 from __future__ import annotations
 
 import datetime as dt
+import json
 import re
+import shutil
+import tempfile
 from pathlib import Path
 
-from .common import KitError, now_iso, slugify
+from .common import KIT_ROOT, KitError, now_iso, run, slugify
 
 RESERVED = {"index.md", "log.md"}
 STATUSES = ("draft", "stable", "deprecated")
@@ -499,6 +502,7 @@ def validate(bundle: Path) -> dict:
         if meta is None:
             errors.append(f"E1 {rel}: no YAML frontmatter")
             continue
+        errors.extend(f"E7 {rel}: {msg}" for msg in strict_yaml_problems(text))
         if not str(meta.get("type") or "").strip():
             errors.append(f"E2 {rel}: missing or empty type")
             continue
@@ -510,3 +514,62 @@ def validate(bundle: Path) -> dict:
         if gen is not None and (not isinstance(gen, dict) or not gen.get("by")):
             errors.append(f"E6 {rel}: generated needs a by")
     return {"bundle": str(bundle), "ok": not errors, "concepts": concepts, "errors": errors, "warnings": warnings}
+
+
+# A plain (unquoted) value that a standard YAML reader would reject or cut
+# short: `title: Fees: 10%` (mapping inside a value) or `title: a #b` (comment).
+# The kit's reader forgives both; okflint, Obsidian and every other tool don't.
+_PLAIN_VALUE = re.compile(r"^\s*(?:- )?[A-Za-z0-9_.-]+:[ \t]+(?![\"'\[{|>&*!])(?P<value>.+?)\s*$")
+
+
+def strict_yaml_problems(text: str) -> list[str]:
+    if not text.startswith(("---\n", "---\r\n")):
+        return []
+    end = re.search(r"\n---[ \t]*(\n|$)", text[3:])
+    if not end:
+        return []
+    problems = []
+    for n, line in enumerate(text[4:3 + end.start() + 1].splitlines(), start=2):
+        m = _PLAIN_VALUE.match(line)
+        if not m:
+            continue
+        value = m.group("value")
+        if ": " in value or value.endswith(":") or " #" in value:
+            problems.append(f"line {n} needs quotes around its value ({line.strip()[:60]!r})")
+    return problems
+
+
+# ---------------------------------------------------------------- okflint (D82)
+
+OKFLINT = "okflint==0.5.1"  # pinned; bump on purpose, with the CI run as the check
+MANIFEST = KIT_ROOT / "okf-base.yaml"
+
+
+def lint(bundle: Path, timeout: float = 180) -> dict:
+    """Run the pinned okflint over a bundle with the kit's manifest. Never
+    installs anything globally: `uv tool run` caches the pinned version. When
+    uv, Python 3.12 or the network is missing the result is `skipped`, not a
+    failure, because `validate` still ran and the user must never be asked to
+    install a linter."""
+    bundle = bundle.resolve()
+    if not bundle.is_dir():
+        raise KitError(f"no docs folder at {bundle}")
+    if shutil.which("uv") is None:
+        return {"bundle": str(bundle), "ok": None, "skipped": "uv is not installed", "errors": [], "warnings": []}
+    with tempfile.TemporaryDirectory(prefix="kit-okflint-") as tmp:
+        manifest = Path(tmp) / "okf-base.yaml"
+        root = bundle.as_posix().replace("'", "''")
+        manifest.write_text(MANIFEST.read_text(encoding="utf-8").replace("{root}", root), encoding="utf-8")
+        out = run(["uv", "tool", "run", "--quiet", "--from", OKFLINT, "okflint", "validate", "--json",
+                   "--manifest", str(manifest)], cwd=Path(tmp), timeout=timeout)
+    try:
+        diagnostics = json.loads(out.stdout or "null")
+    except json.JSONDecodeError:
+        diagnostics = None
+    if not isinstance(diagnostics, list):
+        reason = (out.stderr or out.stdout or "").strip().splitlines()[-1:] or [f"exit {out.returncode}"]
+        return {"bundle": str(bundle), "ok": None, "skipped": f"okflint did not run: {reason[0][:200]}",
+                "errors": [], "warnings": []}
+    errors = [f"{d.get('code')} {d.get('file')}: {d.get('message')}" for d in diagnostics if d.get("severity") == "error"]
+    warnings = [f"{d.get('code')} {d.get('file')}: {d.get('message')}" for d in diagnostics if d.get("severity") != "error"]
+    return {"bundle": str(bundle), "ok": not errors, "linter": OKFLINT, "errors": errors, "warnings": warnings}

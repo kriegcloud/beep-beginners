@@ -17,7 +17,7 @@
   kit explain [--template brief|glossary-entry] [--title T] | --json FILE
   kit glossary add <term> --meaning TEXT
   kit docs new --type T --title T (--body TEXT | --body-file F) [--folder F] [--description D] [--source URL ...] [--by ACTOR] [--export]
-  kit docs validate [PATH] | stale | verify <id> --by ACTOR | deprecate <id> [--reason R] | promote | duplicates
+  kit docs validate [PATH] | lint [PATH] | stale | verify <id> --by ACTOR | deprecate <id> [--reason R] | promote | duplicates
   kit retro open --goal SLUG --summary TEXT | add --goal SLUG --text T --kind chore|step|decision|lesson --due DATE
   kit retro done --goal SLUG <id> | list [--goal SLUG] | overdue | nag
   kit feedback add --what T --fix T [--file F] | list | send
@@ -120,6 +120,7 @@ def build_parser() -> argparse.ArgumentParser:
     q.add_argument("--by", default="process:kit"); q.add_argument("--status", default="draft", choices=["draft", "stable"])
     q.add_argument("--export", action="store_true", help="a session-end memory export (D71 type allowlist applies)")
     q = s.add_parser("validate"); q.add_argument("path", nargs="?", type=Path)
+    q = s.add_parser("lint"); q.add_argument("path", nargs="?", type=Path)
     s.add_parser("stale")
     q = s.add_parser("verify"); q.add_argument("id"); q.add_argument("--by", required=True); q.add_argument("--note", default="")
     q = s.add_parser("deprecate"); q.add_argument("id"); q.add_argument("--reason", default="")
@@ -195,6 +196,8 @@ def dispatch(args: argparse.Namespace):
                                         args.garden_cron_utc, args.runner)
     if args.cmd == "docs" and args.sub == "validate" and args.path:
         return okf.validate(args.path.resolve())
+    if args.cmd == "docs" and args.sub == "lint" and args.path:
+        return okf.lint(args.path)
 
     root = require_root(start)
     if args.cmd == "explore":
@@ -272,6 +275,8 @@ def dispatch(args: argparse.Namespace):
                                    args.by, args.status, export=args.export)
         if args.sub == "validate":
             return okf.validate(root / "docs")
+        if args.sub == "lint":
+            return okf.lint(root / "docs")
         if args.sub == "stale":
             return {"stale": okf.stale_concepts(root)}
         if args.sub == "verify":

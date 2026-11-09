@@ -1,0 +1,38 @@
+{
+  "repo": "https://github.com/fabricioctelles/skills",
+  "commit": "ec4099f92fdeadcf1771c2a3f64efa4970733c89",
+  "license": "Apache-2.0",
+  "vendored": "2026-11-09",
+  "decision": "D82",
+  "changes": "SKILL.md renamed to UPSTREAM-SKILL.md so the plugin loads only the kit's wrapper skill. No content changes.",
+  "files": {
+    "LICENSE": {
+      "from": "LICENSE",
+      "sha256": "aa41faffcf88908b495d7d318e96e889ff78aa53138e51e48c4ef4e6da076ad8"
+    },
+    "UPSTREAM-SKILL.md": {
+      "from": "skills/okf-open-knowledge-format/SKILL.md",
+      "sha256": "8c59be1bf93839b3b7f53a98ea8135421db2e3dea1d0784eb8309cb586bea9f7"
+    },
+    "references/conversion.md": {
+      "from": "skills/okf-open-knowledge-format/references/conversion.md",
+      "sha256": "40dc4460581111f1c15f1f0b320f63a46d4c3b31b7a544e8b73d0dd178570fae"
+    },
+    "references/examples.md": {
+      "from": "skills/okf-open-knowledge-format/references/examples.md",
+      "sha256": "8146ab3dd0f292edf20ecfa9b6c9f6507b5dda077b1f24da581ba14926f05d67"
+    },
+    "references/spec-v01.md": {
+      "from": "skills/okf-open-knowledge-format/references/spec-v01.md",
+      "sha256": "b9655e607346dbbdc6de21190e9a953313eda6a7eba68d4d272a65975940ad6e"
+    },
+    "references/spec-v02.md": {
+      "from": "skills/okf-open-knowledge-format/references/spec-v02.md",
+      "sha256": "7b7b5f2eae8cdbcc12f3bf7665bd70eb49d3162661925bffe582a69953ab7f60"
+    },
+    "scripts/validate.sh": {
+      "from": "skills/okf-open-knowledge-format/scripts/validate.sh",
+      "sha256": "235ea38eb2464f39c52af4ba0c080ffc5b4f4bd6983ec85ab9cc93dbeab3a29e"
+    }
+  }
+}

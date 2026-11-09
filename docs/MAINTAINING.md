@@ -14,6 +14,8 @@ plugins/
     scripts/{detect,tools,state,workspace,pick_folder}.py   onboarding's scripts
     hooks/hooks.json, rules.py  PreToolUse guard rules, SessionStart/SessionEnd via kit.py hook
     skills/                     onboarding, explore, goal, project, explain, kit-grill, caretaker
+    skills/okf/                 the okf wrapper skill; upstream/ is the vendored OKF skill, pinned in UPSTREAM.json (D82)
+    okf-base.yaml               okflint manifest `kit docs lint` renders per bundle (D82)
     templates/                  exploration, goal, project-python, project-ts (with WORKFLOW.yml.tmpl)
     template/                   the workspace onboarding copies (AGENTS.md slots, settings, CI, NEEDS-YOU)
     tools.yaml                  the software list
@@ -86,7 +88,7 @@ deny rules are twins; keep them in step and the test
 uv run --script plugins/kit/tests/test_rules.py      # guard rules
 uv run --script plugins/kit/tests/test_landing.py    # kit land / kit sync / kit undo against real git repos
 uv run --script plugins/kit/tests/test_kit.py        # packets, projects, chores, needs-you, explain, profile, gate, manifest
-uv run --script plugins/kit/tests/test_okf.py        # docs/ as OKF, trust and staleness, retros, feedback, migrations
+uv run --script plugins/kit/tests/test_okf.py        # docs/ as OKF, okflint, the vendored skill, trust and staleness, retros, feedback, migrations
 uv run --script plugins/kit/tests/test_elevated_batch.py   # needs pwsh
 claude plugin validate .
 tests/vm/run.sh --help        # Windows proof, see tests/vm/README.md
@@ -94,6 +96,17 @@ tests/vm/run.sh --help        # Windows proof, see tests/vm/README.md
 
 `.github/workflows/tests.yml` runs the same, plus a smoke run of `kit` on a
 fresh template and a build of both project templates.
+
+## The vendored OKF skill (D82)
+
+`plugins/kit/skills/okf/upstream/` is fabricioctelles/skills
+`skills/okf-open-knowledge-format` at the commit in `UPSTREAM.json`, byte for
+byte (only `SKILL.md` is renamed). Never edit those files; put kit rules in
+the wrapper `skills/okf/SKILL.md`. CI posts a notice when upstream moves. To
+re-vendor: read the upstream diff, copy the files at the new commit, update
+`commit` and every `sha256` in `UPSTREAM.json`, and run `test_okf.py`.
+To bump okflint, change `OKFLINT` in `kitlib/okf.py` and check
+`okf-base.yaml` against that version's `config/RULES.md`.
 
 ## Releases (D72)
 

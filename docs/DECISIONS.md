@@ -527,7 +527,8 @@ software list, the VM proof.
   same frontmatter. Validation runs as `kit docs validate` (Python, so it
   works on the user's Windows machine as a chore) and, in the kit's CI, also
   as the upstream skill's `validate.sh` (Apache-2.0, fetched at a pinned
-  commit, not vendored).
+  commit, not vendored; amended by D82: the whole skill is now vendored and
+  okflint joins the checks).
 - **Ownership (the build's answer to the open question).** `.packet.json`
   owns a packet's lifecycle (active, parked, dropped, graduated; stage; open
   questions). The README frontmatter owns only the trust fields and mirrors
@@ -922,6 +923,53 @@ this repository public"), so the locks come in three layers.
   `caretaker-setup` run, a run rejected at the usage limit, the three
   disabled proof routines to delete, the VM lock and the test repository as
   they are until the operator says otherwise.
+
+### D82. The OKF skill ships in the kit, and okflint maintains docs/ [2026-11-09]
+
+- **Question.** D60 made `docs/` an OKF bundle and ran the upstream skill's
+  `validate.sh` in the kit's CI only. The agent in a friend's workspace never
+  loaded the skill itself, so it had no guidance on writing, enriching,
+  citing, cross-linking or importing pages, and the only in-workspace check
+  was the kit's forgiving stdlib parser. Should the workspace get the skill,
+  and which tools should agents use to keep `docs/` healthy?
+- **Answer.** Ship it, wrapped. `plugins/kit/skills/okf/` holds a kit skill
+  (`okf`) that sets the overrides: new pages through `kit docs new`, indexes
+  and logs only through the kit, trust fields only through `kit docs
+  verify`/`deprecate`, v0.2 over v0.1, no `kcmd`, the D71 never-list on
+  imports, and never asking the user to install anything. Beside it,
+  `upstream/` vendors fabricioctelles/skills `okf-open-knowledge-format` at
+  `ec4099f` unchanged (Apache-2.0, LICENSE included; `SKILL.md` renamed to
+  `UPSTREAM-SKILL.md` so the plugin loads one skill, not two), with
+  `UPSTREAM.json` pinning the commit and each file's SHA-256.
+- **Tools.** `kit docs validate` stays the fast offline check and gains
+  `E7`: an unquoted value holding `: ` or ` #`, which standard YAML rejects
+  or truncates while the kit's reader forgave it. New `kit docs lint` runs
+  okflint 0.5.1 (MIT, pure Python, so it works on Windows) pinned through
+  `uv tool run`, against `plugins/kit/okf-base.yaml` rendered with the
+  bundle's absolute path (okflint resolves roots relative to its manifest).
+  The manifest has no profile, because concept types stay open; v0.2 field
+  shapes are errors; links, split candidates and v0.1 forms are warnings for
+  the agent; staleness stays with `kit docs stale`. Without uv or the network
+  lint returns `skipped`, never a failure. The weekly `okf-validate` chore
+  runs both and still says one line only when a page needs fixing.
+- **Found on the way.** okflint's first run rejected the template's own
+  `docs/agents/issue-tracker.md` (`title: Issue tracker: local markdown ...`).
+  Every v3.x workspace carries that page. The template is fixed, and the
+  `0003-v3.2-okf-quoting` migration rewrites the frontmatter of any page that
+  fails E7, through the kit's writer, leaving bodies untouched.
+- **CI.** Runs the vendored `validate.sh` (no download), `kit docs lint` on
+  the template and on the smoke workspace, re-hashes the vendored files
+  against the pinned upstream commit, and posts a notice, not a failure, when
+  upstream `main` has moved past the pin. Re-vendoring is a deliberate change
+  with its own test run.
+- **Rejected.** Fetching the skill at session start (D76: the cloud refuses
+  downloaded code). Enabling it as a plugin (upstream publishes none for OKF,
+  and an external `github` marketplace source needs a per-user install).
+  Loading upstream's `SKILL.md` unwrapped (it tells the agent to ask the user
+  to `pip install okflint` and offers Knowledge Catalog sync). Google's
+  `reference-agent` in GoogleCloudPlatform/open-knowledge-format (an ADK and
+  BigQuery producer, not a maintenance tool). A per-type okflint profile
+  (would reject legitimate open types such as an imported `recipe`).
 
 ## Facts from research that shape the build
 

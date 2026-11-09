@@ -75,6 +75,7 @@ operator mode.
   a session, use the `remember` skill for anything durable you learned (a
   preference, a business fact, a correction). Never write down health,
   relationships, personal finances, other people by name, or secrets.
+  Any other page you write, fix or import there follows the `okf` skill.
 - `KIT-FEEDBACK.md` holds notes for the kit's maintainer; nothing in it leaves
   this repository without the user's yes.
 - `workspace.config` lists where data lives outside the repo, such as

@@ -250,12 +250,21 @@ def _chore_locks(root: Path, **_) -> dict:
 
 
 def _chore_okf_validate(root: Path, **_) -> dict:
+    """`kit docs validate` (offline, always) plus okflint (D82) when uv can run
+    it. A skipped lint is a note for the agent, never a line for the user."""
     from . import okf
-    result = okf.validate(root / "docs") if (root / "docs").exists() else {"ok": True, "errors": []}
-    if result["ok"]:
-        return {"ok": True, "line": "", "validate": result}
-    return {"ok": False, "validate": result,
-            "line": f"{len(result['errors'])} page{'s' if len(result['errors']) != 1 else ''} in docs need fixing (see the validate output)."}
+    docs = root / "docs"
+    if not docs.exists():
+        return {"ok": True, "line": ""}
+    result = okf.validate(docs)
+    linted = okf.lint(docs, timeout=120)
+    files = {e.split(" ", 2)[1].rstrip(":") for e in result["errors"]}
+    files |= {e.split(" ", 2)[1].rstrip(":") for e in linted["errors"]}
+    if not files:
+        return {"ok": True, "line": "", "validate": result, "lint": linted}
+    n = len(files)
+    return {"ok": False, "validate": result, "lint": linted,
+            "line": f"{n} page{'s' if n != 1 else ''} in docs need fixing (see the validate and lint output)."}
 
 
 def _chore_docs_promote(root: Path, **_) -> dict:

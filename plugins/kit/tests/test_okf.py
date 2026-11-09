@@ -167,7 +167,7 @@ def test_migrate_runs_once(ws):
     data["permissions"]["deny"] = [r for r in data["permissions"]["deny"] if "tag -d" not in r and "DELETE" not in r]
     settings.write_text(json.dumps(data))
     first = migrate.run(ws)
-    assert [r["migration"] for r in first["ran"]] == ["0001-v3-baseline", "0002-v3.1-locks"]
+    assert [r["migration"] for r in first["ran"]] == ["0001-v3-baseline", "0002-v3.1-locks", "0003-v3.2-okf-quoting"]
     assert all(r["applied"] for r in first["ran"])
     assert not (ws / "CHANGELOG-FOR-ED.md").exists() and glossary.read_text().startswith("---")
     # D80: the v3.1 migration adds the missing deny rules and the two glossary terms
@@ -175,9 +175,88 @@ def test_migrate_runs_once(ws):
     assert "Bash(git tag -d:*)" in deny and "PowerShell(gh api -X DELETE:*)" in deny
     assert "**Safe point**" in glossary.read_text() and "**Lock**" in glossary.read_text()
     second = migrate.run(ws)
-    assert second["ran"] == [] and second["applied_total"] == 2
+    assert second["ran"] == [] and second["applied_total"] == 3
     state = json.loads((ws / ".kit" / "migrations.json").read_text())
     assert "0001-v3-baseline" in state["applied"] and "0002-v3.1-locks" in state["applied"]
+
+
+# ---------------------------------------------------------------- strict YAML, okflint, the vendored skill (D82)
+
+OLD_TRACKER_TITLE = "title: Issue tracker: local markdown inside goal packets\n"
+
+
+def test_validate_flags_values_standard_yaml_rejects(ws):
+    page = ws / "docs" / "fees.md"
+    page.write_text("---\ntype: business-fact\ntitle: Fees: 10%\ndescription: \"ok: quoted\"\n"
+                    "note: cut #short\nverified: {by: human:ed, at: \"2026-01-01T00:00:00Z\"}\n---\nbody\n")
+    errors = okf.validate(ws / "docs")["errors"]
+    assert [e.split(" ")[0] for e in errors] == ["E7", "E7"]
+    assert "line 3" in errors[0] and "line 5" in errors[1]
+    # what the kit writes itself is always quoted where it must be
+    okf.concept_new(ws, "", "Shipping: the slow way", "how-to", "steps")
+    page.unlink()
+    assert okf.validate(ws / "docs")["ok"]
+
+
+def test_migration_quotes_flagged_pages(ws):
+    tracker = ws / "docs" / "agents" / "issue-tracker.md"
+    text = tracker.read_text()
+    tracker.write_text(text.replace('title: "Issue tracker: local markdown inside goal packets"\n', OLD_TRACKER_TITLE))
+    assert not okf.validate(ws / "docs")["ok"]
+    body_before = okf.split_frontmatter(tracker.read_text())[1]
+    spec = __import__("importlib.util").util.spec_from_file_location("m3", KIT / "migrations" / "0003-v3.2-okf-quoting.py")
+    m3 = __import__("importlib.util").util.module_from_spec(spec)
+    spec.loader.exec_module(m3)
+    assert "docs/agents/issue-tracker.md" in m3.apply(ws)
+    assert okf.validate(ws / "docs")["ok"] and okf.split_frontmatter(tracker.read_text())[1] == body_before
+    assert m3.apply(ws) == "nothing to quote"
+
+
+def test_lint_is_skipped_not_failed_without_uv(ws, monkeypatch):
+    monkeypatch.setattr(okf.shutil, "which", lambda name: None)
+    result = okf.lint(ws / "docs")
+    assert result["ok"] is None and "uv" in result["skipped"]
+
+
+needs_uv = pytest.mark.skipif(shutil.which("uv") is None or os.environ.get("KIT_OFFLINE") == "1",
+                              reason="okflint runs through uv and needs the network once")
+
+
+@needs_uv
+def test_lint_template_and_a_kit_written_page(ws):
+    okf.concept_new(ws, "", "Mercari fee: ten percent", "business-fact", "Mercari takes 10%.[^s1]\n\n[^s1]: Fee page",
+                    sources=[{"id": "s1", "resource": "https://example.com/fees"}], by="claude-code/claude-opus-5-5")
+    result = okf.lint(ws / "docs")
+    assert result["ok"] is True, result
+    assert result["linter"] == okf.OKFLINT and result["warnings"] == []
+
+
+@needs_uv
+def test_lint_catches_what_the_fast_check_forgives(ws):
+    (ws / "docs" / "bad.md").write_text("---\ntype: how-to\ntitle: Bad: one\ndescription: x\n---\nbody\n")
+    (ws / "docs" / "shape.md").write_text("---\ntype: how-to\ndescription: x\ngenerated:\n  by: process:kit\n"
+                                          "  at: \"2026-11-08\"\n---\nbody\n")
+    linted = okf.lint(ws / "docs")
+    codes = sorted(e.split(" ")[0] for e in linted["errors"])
+    assert codes == ["F001", "S205"], linted
+    # the chore reports one line naming both pages, never the codes
+    from kitlib import chores
+    out = chores.HANDLERS["okf-validate"](ws)
+    assert out["ok"] is False and out["line"].startswith("2 pages in docs need fixing")
+
+
+def test_vendored_okf_skill_matches_its_pin():
+    import hashlib
+    skill = KIT / "skills" / "okf"
+    pin = json.loads((skill / "UPSTREAM.json").read_text())
+    assert pin["license"] == "Apache-2.0" and len(pin["commit"]) == 40
+    on_disk = {p.relative_to(skill / "upstream").as_posix() for p in (skill / "upstream").rglob("*") if p.is_file()}
+    assert on_disk == set(pin["files"])
+    for rel, entry in pin["files"].items():
+        assert hashlib.sha256((skill / "upstream" / rel).read_bytes()).hexdigest() == entry["sha256"], rel
+    # only the kit's wrapper is a skill; the upstream copy must not load as a second one
+    assert [p.relative_to(skill).as_posix() for p in skill.rglob("SKILL.md")] == ["SKILL.md"]
+    assert "okflint==" in okf.OKFLINT and (KIT / "okf-base.yaml").exists()
 
 
 if __name__ == "__main__":
