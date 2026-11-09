@@ -5,6 +5,11 @@ plugins/kit/caretaker/, all runner-neutral. Cloud scheduled tasks are the
 default runner; `install --runner actions` emits the claude-code-action form.
 `idle` is the cheap REST check every run starts with. The never-list from D46
 is spelled out in every prompt verbatim.
+
+How the kit reaches the cloud sandbox (D45, amended 2026-11-09): as the
+task's second repository, cloned by the platform. Never a download bootstrap:
+the sandbox's auto-mode classifier refuses to run code pulled from the
+internet ("Code from External"), and the routine API drops plugin fields.
 """
 
 from __future__ import annotations
@@ -215,7 +220,7 @@ def kit_line(route: str, ref: str) -> str:
     }[route]
 
 
-def prompt(name: str, workspace_url: str, route: str = "fetch", ref: str = "main") -> str:
+def prompt(name: str, workspace_url: str, route: str = "repo", ref: str = "stable") -> str:
     text = (PROMPTS / f"{name}.md").read_text(encoding="utf-8")
     return (text.replace("{{workspace_url}}", workspace_url).replace("{{kit_line}}", kit_line(route, ref))
             .replace("{{never}}", NEVER))
@@ -228,8 +233,13 @@ def _event(text: str) -> dict:
                      "message": {"content": text, "role": "user"}}}
 
 
-def install_bodies(workspace_url: str, environment_id: str, cron_utc: str, ref: str = "main",
-                   route: str = "fetch", garden_cron_utc: str | None = None, runner: str = "cloud") -> dict:
+def install_bodies(workspace_url: str, environment_id: str, cron_utc: str, ref: str = "stable",
+                   route: str = "repo", garden_cron_utc: str | None = None, runner: str = "cloud") -> dict:
+    """Routine bodies. `route="repo"` is the only one that runs in the cloud
+    (2026-11-09 proof): the API drops `extra_marketplaces`/`enabled_plugins`
+    on create (route "plugin"), and the sandbox's auto-mode classifier refuses
+    code downloaded from the internet (route "fetch", "Code from External").
+    The other two stay only so the record of why is runnable."""
     if runner == "actions":
         return actions_workflows(workspace_url, cron_utc, garden_cron_utc or "7 3 * * 1", ref)
     sources = [{"git_repository": {"url": workspace_url}}]

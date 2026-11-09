@@ -717,6 +717,46 @@ the `caretaker-health` chore.
   the proof (reset Nov 11, 10pm America/New_York): D66 before the caretaker
   existed. Headless sessions from the VM stopped there.
 
+### D76. Every friend-facing step is the agent's job [2026-11-09, standing rule from Benjamin]
+
+- **Rule.** "If I'm having to do things to set this up then that means the
+  user would as well, and they have no idea what a GitHub App is." Every
+  manual step the proof hits is classified: **proof-only** (adding the
+  operator as a collaborator on the test repo, deleting proof routines,
+  juggling the test account; documented in `tests/cloud/README.md` and
+  nowhere a friend reads) or **friend-facing** (the Claude GitHub App
+  install, the claude.ai GitHub connection and cloud onboarding, creating the
+  routines, the usage-limit behaviour). Friend-facing steps live in the
+  `caretaker-setup` skill, and the agent does the work: it drives the
+  friend's Chrome through Claude in Chrome to github.com/apps/claude, picks
+  their account and only the workspace repository, finishes the claude.ai
+  callback, and creates the three routines itself through the schedule skill
+  from the friend's Code tab, with the winning route baked in. The friend
+  answers yes/no questions only.
+- **Spoken line and glossary.** Each friend-facing step gets one plain
+  sentence before it happens ("GitHub needs a permission slip so Claude's
+  cloud helper can read your workspace. I'll set it up; you may see a GitHub
+  page asking you to confirm.") and the glossary gains "GitHub App" and
+  "Routine". Where a click truly needs the human (a two-factor code, a confirm
+  button the extension can't press), the skill says exactly what to click and
+  why, and the item sits in `NEEDS-YOU.md` until it's done.
+- **Proof item added.** On the VM as the test account, the VM's own agent runs
+  `caretaker-setup` end to end: installs the App and creates the routines with
+  the operator answering only the skill's questions. The App install the
+  proof session drove through the harness on 2026-11-09 is proof-only
+  evidence that the flow exists, not that proof.
+- **Facts kept so nobody reintroduces a download bootstrap (D45 amended).**
+  Route 1: the routines API accepts `extra_marketplaces` and
+  `enabled_plugins` on create but stores them empty, and the run has no
+  plugin and no `CLAUDE_PLUGIN_ROOT`. Route 2: the sandbox's auto-mode
+  classifier refuses the curl-and-run of `kit.py` as "Code from External",
+  and routines always run in auto mode. Route 3, the kit as the task's second
+  repository cloned by the platform and checked out at the release ref, is
+  the only one that runs; `kit caretaker install` defaults to it and to the
+  `stable` ref. One more cloud fact: the proxy's token can't read Dependabot
+  alerts ("Resource not accessible by integration"), so the kit counts
+  unreadable alerts as none and says so.
+
 ## Facts from research that shape the build
 
 - 1Password Individual is about $36 for the first year, then about $48 a year.

@@ -59,6 +59,11 @@ skill, a hook, the script, `chores.yaml`), not the template.
   Real memories live outside the repo and reach the VM through a gitignored
   fixture path.
 - Run `unslop` on anything a user will read.
+- The caretaker reaches the cloud sandbox as the task's second repository,
+  never by downloading itself: the sandbox's auto-mode classifier refuses
+  code pulled from the internet ("Code from External"), and the routine API
+  drops plugin fields on create (D76, 2026-11-09). `kit caretaker fetch` and
+  the `fetch`/`plugin` routes stay only as the runnable record of why.
 - When you add a file under `plugins/kit/`, regenerate `MANIFEST`:
   `KIT_WRITE_MANIFEST=1 uv run --script plugins/kit/tests/test_kit.py`.
 

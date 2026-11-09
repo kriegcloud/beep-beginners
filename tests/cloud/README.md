@@ -18,6 +18,23 @@ deleted afterwards.
 3. The v3 kit is reachable from GitHub on a branch (`v3`), since every route
    below fetches it from there. `kit caretaker install --ref v3`.
 
+## Which steps are proof-only and which are the friend's (D76)
+
+| Step | Class | Where it lives |
+| --- | --- | --- |
+| Operator added as collaborator on the test repo | proof-only | this file |
+| Proof routines named `beep-beginners-proof-*`, deleted after | proof-only | this file |
+| Test account's `gh` token readable only in the desktop logon session | proof-only | this file, `tests/vm/README.md` |
+| Claude GitHub App installed on the workspace repo | friend-facing | `caretaker-setup` skill, step 1: the agent drives Chrome; the friend confirms at most a password or code |
+| claude.ai GitHub connection and Default environment | friend-facing | `caretaker-setup` skill, step 2 |
+| Creating the three routines and the webhook | friend-facing | `caretaker-setup` skill, step 3: the agent uses the schedule tool |
+| Usage-limit behaviour | friend-facing | welcome line, `caretaker-pause` skill, `caretaker-health` chore |
+
+Proof item for the next VM run: the VM's own agent runs `caretaker-setup`
+end to end as the test account, with the operator answering only the skill's
+questions and no browser driven from the harness. The App install driven
+through the harness on 2026-11-09 shows the flow exists; it is not that proof.
+
 ## Facts learned on 2026-11-09 before the first cloud run
 
 - The operator's Claude account was at its weekly limit (reset Nov 11, 10pm

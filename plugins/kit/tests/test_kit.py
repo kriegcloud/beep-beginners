@@ -261,7 +261,7 @@ def test_actions_run_id():
 # ---------------------------------------------------------------- caretaker
 
 def test_install_bodies_shape():
-    bodies = caretaker.install_bodies("https://github.com/o/ws", "env_1", "7 13 * * *", route="fetch")
+    bodies = caretaker.install_bodies("https://github.com/o/ws", "env_1", "7 13 * * *", route="fetch", ref="main")
     sweep = bodies["sweep"]
     assert sweep["cron_expression"] == "7 13 * * *" and "cron_expression" not in bodies["pr_opened"]
     assert bodies["garden"]["cron_expression"]
@@ -272,8 +272,10 @@ def test_install_bodies_shape():
         assert caretaker.NEVER in text and "raw.githubusercontent.com/kriegcloud/beep-beginners/main" in text
         assert "{{" not in text and "kit caretaker idle" in text or name == "pr_opened"
     assert sweep["clear_mcp_connections"] is True
-    repo = caretaker.install_bodies("https://github.com/o/ws", "env_1", "7 13 * * *", route="repo")
+    repo = caretaker.install_bodies("https://github.com/o/ws", "env_1", "7 13 * * *")  # the default route
     assert len(repo["sweep"]["job_config"]["ccr"]["session_context"]["sources"]) == 2
+    repo_prompt = repo["sweep"]["job_config"]["ccr"]["events"][0]["data"]["message"]["content"]
+    assert "checkout -q stable" in repo_prompt and "curl" not in repo_prompt
     plugin = caretaker.install_bodies("https://github.com/o/ws", "env_1", "7 13 * * *", route="plugin", ref="v3")
     assert plugin["sweep"]["enabled_plugins"] == ["kit@beep-beginners"]
     assert plugin["sweep"]["extra_marketplaces"][0]["source"]["ref"] == "v3"

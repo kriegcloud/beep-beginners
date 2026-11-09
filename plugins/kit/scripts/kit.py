@@ -27,7 +27,7 @@
   kit caretaker idle [--garden] | sweep [--dry-run] | pr <n> [--max-seconds N] | garden [--dry-run]
   kit caretaker fix-used | record --sweep ID --pr ID --garden ID [--runner R] [--plan P] | pause
   kit caretaker fetch --into DIR [--ref REF]
-  kit caretaker install --workspace URL --environment ID --cron-utc EXPR [--garden-cron-utc EXPR] [--route plugin|fetch|repo] [--runner cloud|actions] [--ref REF]
+  kit caretaker install --workspace URL --environment ID --cron-utc EXPR [--garden-cron-utc EXPR] [--route repo] [--runner cloud|actions] [--ref stable]
   kit hook guard | session-start | session-end       (called from hooks.json)
 
 Standard library only. Output is JSON on stdout; errors are one plain sentence
@@ -172,8 +172,9 @@ def build_parser() -> argparse.ArgumentParser:
     q = s.add_parser("fetch"); q.add_argument("--into", type=Path, required=True); q.add_argument("--ref", default="main")
     q = s.add_parser("install"); q.add_argument("--workspace", required=True); q.add_argument("--environment", default="")
     q.add_argument("--cron-utc", required=True); q.add_argument("--garden-cron-utc")
-    q.add_argument("--route", default="fetch", choices=["plugin", "fetch", "repo"])
-    q.add_argument("--runner", default="cloud", choices=["cloud", "actions"]); q.add_argument("--ref", default="main")
+    q.add_argument("--route", default="repo", choices=["plugin", "fetch", "repo"],
+                   help="repo is the only route that runs in the cloud (D45 as amended); plugin and fetch stay for the record")
+    q.add_argument("--runner", default="cloud", choices=["cloud", "actions"]); q.add_argument("--ref", default="stable")
 
     p = sub.add_parser("hook"); p.add_argument("event", choices=["guard", "session-start", "session-end"])
     return parser
