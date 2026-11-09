@@ -233,6 +233,263 @@ lists: setting a Windows Hello PIN and choosing 1Password's Balanced preset.
 Both are now onboarding-guided user steps. A later release may re-prove with
 the pre-auth-key and sign-in-sprint ideas from D39.
 
+## 2026-11-08
+
+Settled in a grilling session with Benjamin on 2026-11-08, after the kit was
+proven for one user (D41). The problem being solved: every simplified setup
+Benjamin had made for friends drifted over time, because nobody maintained it,
+the friends didn't know what to ask for, and agents don't take initiative
+unless something tells them to. Two fact checks fed these entries: Claude
+Code's cloud scheduled tasks (code.claude.com/docs/en/routines) and GitHub's
+free-plan security features (see the facts section at the end).
+
+### D42. The kit is generic; each user gets a profile [amends 1, 14, the Ed-specific plugins]
+
+- **Question.** The spec and the first release were written for one person,
+  with his listing and job-hunt plugins in the marketplace. The kit is for
+  several friends. What is it now?
+- **Answer.** The kit holds only machinery: onboarding, explore and goals,
+  guards, the caretaker, chores, security, the explain skill, unslop, helper.
+  Onboarding builds a profile per user (D55) and generates their personal
+  skills into their own workspace's `.claude/skills/`. `pokeseller` and
+  `job-hunt` leave the marketplace and become the worked example of
+  profile-to-skills generation. No live workspace depends on them: the kit has
+  only run on the test VM.
+- **Rejected.** Keeping it one person's kit and forking by hand for the next
+  friend, which repeats the hand-holding the kit exists to remove. Keeping the
+  Ed plugins in the marketplace as opt-in personas, which is more to maintain
+  for a shape only one friend has.
+
+### D43. One private repo per user, projects under `projects/<name>` [amends 3]
+
+- **Question.** Where do the apps and automations a user builds live? The hub
+  is markdown packets and Python scripts.
+- **Answer.** Everything is one repository. The hub stays at the root
+  (explorations, goals, docs, profile). Each app or automation lives under
+  `projects/<name>` with its own `AGENTS.md` and `CLAUDE.md`, its own stack
+  (D56) and its own tests. No turborepo, no uv workspace, no Node requirement
+  for the hub. CI runs per changed folder with path filters. Benjamin's
+  reasoning: by the time a user needs several repositories they have become
+  intermediate, and the kit stops at beginners. A second repository for a
+  learning project (PokeLedger in the spec) stays allowed because it has to sit
+  on a profile for employers; that is a user-facing reason, not a layout one.
+- **Rejected.** A turborepo (Node, a lockfile and Dependabot churn on tooling
+  the user never asked for, and awkward for Python). A uv workspace (makes any
+  TypeScript project second class). Separate repositories per app (chosen
+  first in the session, reversed by Benjamin for the reason above).
+
+### D44. Unattended work runs on Claude cloud scheduled tasks plus session-start chores
+
+- **Question.** Agents exist only while a session is open. Merging updates,
+  watching checks, triaging alerts and sweeping stale work have to happen when
+  the user is away. Where does that run?
+- **Answer.** A Claude Code cloud scheduled task (the `/schedule` feature, in
+  research preview on 2026-11-08) is the caretaker. It runs on Anthropic's
+  infrastructure against the user's own subscription with no API key, clones
+  the repository fresh each run, and reaches GitHub through the Claude GitHub
+  App or the user's `gh` token. Anything that needs the local machine (plugin
+  updates, backup check, OneDrive drift) runs as the first chore of a desktop
+  session (D52).
+- **Rejected.** `claude-code-action` in GitHub Actions: officially supports a
+  subscription OAuth token from `claude setup-token`, but onboarding would
+  have to mint a long-lived token, store it as a repository secret, rotate it,
+  and spend the user's Actions budget. Session-start only: a user who opens
+  Claude twice a month leaves PRs and alerts sitting for weeks.
+
+### D45. The caretaker fetches the public kit at run start
+
+- **Question.** Cloud tasks do not install marketplace plugins.
+  Cloud runs ignore `enabledPlugins` and `extraKnownMarketplaces` and load
+  only the clone's `CLAUDE.md`, `.claude/skills/`, and the hooks and
+  permission rules in `.claude/settings.json`. How does the caretaker get the kit?
+- **Answer.** The task's prompt starts with a shallow clone of
+  `kriegcloud/beep-beginners` into the sandbox and runs the kit script and
+  skills from there. Always current, nothing vendored into the user's
+  repository, no commit churn. The kit is public, so the sandbox's GitHub proxy
+  should allow the clone; the build proves this on a test task before anything
+  depends on it.
+- **Rejected.** A session-start chore that vendors the caretaker skill into
+  the workspace and commits it (fills history with kit updates, and a user who
+  stays away a month runs a stale caretaker). Moving the caretaker to GitHub
+  Actions (D44).
+
+### D46. What the caretaker may do with nobody awake
+
+- **Answer.** Unattended: merge Dependabot PRs and agent-opened PRs when every
+  required check is green (through `kit pr merge`, D49); retry a flaky check
+  once; fix a failing lint or test in a kit-made PR; read Dependabot alerts;
+  sweep stale packets; write `NEEDS-YOU.md` (D53) and the weekly note. Never
+  unattended: anything that changes a price, publishes, sends, deletes data,
+  adds a paid service, or where checks stay red after one fix attempt. Those
+  become items the user sees at the start of their next session.
+- **Rejected.** Bot PRs only (an app fix sits unmerged until the user opens
+  Claude). Merge anything green (a green check is not "the app still works").
+
+### D47. Caretaker cadence: a daily sweep plus a PR-opened trigger
+
+- **Answer.** Two cloud tasks, both created by onboarding. A daily morning
+  sweep does merges, Dependabot, alerts, staleness, `NEEDS-YOU.md`, and on
+  Mondays the weekly note. A GitHub trigger on "pull request opened" (sessions
+  and Dependabot both open PRs) merges a green PR within the hour. The
+  minimum schedule for cloud tasks is one hour; GitHub-event and manual fires
+  are also capped per hour.
+- **Rejected.** Daily only (slow for app fixes). Hourly (24 mostly empty runs
+  a day against the user's subscription).
+
+### D48. Packets land on main; code lands through short-lived PRs [amends 16, D25]
+
+- **Question.** The hub commits at checkpoints and pushes at session end. Code
+  needs checks before it lands. One repository now carries both.
+- **Answer.** Changes under `explorations/`, `goals/`, `docs/` and the profile
+  keep committing to `main` at checkpoints, with the session-end push. Changes
+  under `projects/` go on a branch named for their goal; the session-end hook
+  pushes that branch and opens a PR through `kit pr open`; the caretaker
+  merges it when green. The kit script picks the path by what changed, so
+  neither the user nor the agent decides.
+- **Rejected.** Everything through PRs (half-finished sessions leave open PRs,
+  and the backup push becomes a branch push plus a PR). Everything straight to
+  main (a broken app reaches main before anyone looks).
+
+### D49. The kit enforces the merge gate; no GitHub upgrade
+
+- **Question.** On a Free personal account, private repositories have no
+  branch protection and no enforced rulesets, so GitHub cannot require checks
+  before a merge. Who does?
+- **Answer.** Merging only happens through `kit pr merge`. It reads the PR's
+  check runs over `gh api`, refuses unless every required check is green and
+  no gitleaks finding is open, and merges over REST. The guards plugin denies
+  raw `gh pr merge` and `gh api .../merge` so no agent can go around it. The
+  caretaker and desktop sessions share the one code path.
+- **Rejected.** GitHub Pro at about $4 a month per user for protected
+  branches (another subscription the user has to approve and keep). A public
+  repository (free rulesets and scanning, but the hub holds the user's
+  profile, job hunt and business notes).
+
+### D50. Security: prevent locally, scan with free tools in CI
+
+- **Question.** GitHub Secret Protection and Code Security are paid, and a
+  Free personal account cannot buy them for private repositories at all. What
+  is the stance?
+- **Answer.** The risk that matters is an agent committing a secret, so a
+  PreToolUse guard runs gitleaks on staged files before any `git commit` and
+  blocks on a finding. gitleaks goes on the software list through `tools.yaml`.
+  CI in the workspace runs gitleaks, Semgrep CE, zizmor (on the workflow
+  files themselves) and osv-scanner, with Dependabot version and security
+  updates. All are free for personal private repositories (gitleaks-action
+  needs no license key there; zizmor runs with `advanced-security: false`
+  because GitHub gates SARIF upload behind paid code scanning). Onboarding enables Dependabot alerts and
+  security updates over the API, since private repositories need that done by
+  hand, and commits `.github/dependabot.yml`. The kit repository runs the same
+  CI on itself. Secret-scanning alerts are not read from GitHub: that API
+  returns 404 where secret scanning isn't enabled.
+- **Rejected.** Paying for GitHub Advanced Security (not purchasable here,
+  and $19 to $49 per committer a month where it is). Making repositories
+  public (D49).
+
+### D51. One plugin-shipped `kit` script is the command layer
+
+- **Question.** beep-effect's edge is its commands: bootstrap a packet, open a
+  PR, watch CI. The kit had one script, `packet.py`, called from skills.
+- **Answer.** A single uv-run Python entry point in the plugin with
+  subcommands: `kit explore new`, `kit goal graduate`, `kit project new`,
+  `kit pr open`, `kit pr watch`, `kit pr merge`, `kit chores run`,
+  `kit needs-you`, `kit explain`. Skills call it through
+  `${CLAUDE_PLUGIN_ROOT}`, so it updates with the marketplace, and the
+  caretaker runs it from its kit clone (D45). `packet.py` folds into it. All
+  GitHub calls use `gh api` REST, because the cloud sandbox's GitHub proxy
+  rejects GraphQL and `gh pr` fails there. The user never sees any of it.
+- **Rejected.** An installable `uv tool` CLI (updates separately from the
+  plugins, so kit and CLI drift). Skills only with raw git and gh (the setup
+  that got messy: no deterministic steps, no tests).
+
+### D52. A kit-owned `chores.yaml`; stale work gets a question, never a silent archive
+
+- **Answer.** The kit ships `chores.yaml`: for each chore its cadence, its
+  command, and the one line to tell the user. Desktop sessions run the most
+  overdue chore at session start, capped at about two minutes, and say one
+  line about it. The caretaker runs the ones that don't need the machine.
+  Staleness (an exploration untouched for 30 days, a goal with no progress)
+  produces a question in the next session: keep, park or drop. Nothing moves
+  or is deleted without a yes. Fixes to the list reach every workspace
+  through the marketplace.
+- **Rejected.** Auto-parking stale packets (the user may not notice something
+  they cared about got parked). A per-workspace `CHORES.md` the agent edits
+  (kit fixes never reach existing workspaces, which is how things drifted
+  before).
+
+### D53. `NEEDS-YOU.md` is how the caretaker reaches the user
+
+- **Question.** Notifications from cloud tasks are not documented. How does
+  "this needs you" reach someone who never reads GitHub?
+- **Answer.** The caretaker commits a short plain-language list to the hub:
+  one item per decision, each with a brief from the explain skill (D54). The
+  session-start hook opens every session with it ("Two things need you:
+  ..."). Resolved items move to the changelog. The weekly "what happened" note
+  lives in the same file. Nothing reaches the user between sessions, which
+  matches how they already use Claude: they come to it.
+- **Rejected.** GitHub Issues with email (teaches them to read GitHub, and the
+  mail looks like spam from a bot). Texting the helper (routes routine
+  decisions through Benjamin again).
+
+### D54. Decision briefs from a learner profile, plus a running glossary
+
+- **Question.** Agents have to explain tradeoffs and technical decisions in
+  terms each user understands.
+- **Answer.** Root `AGENTS.md` gets a "how I learn" slot onboarding fills:
+  background, analogies that work, how much detail they want. An `explain`
+  skill (and `kit explain`, which renders the template) produces a
+  fixed-shape brief for anything non-trivial: what I'm deciding; your options
+  in one line each; what each costs you in time, money or risk; what I
+  recommend and why; what you'd have to do. New terms get added to
+  `GLOSSARY.md` the first time they appear. Unslop runs on all of it.
+- **Rejected.** An analogy-first rule with no fixed shape (quality depends on
+  the session's mood and nothing accumulates). A weekly digest only
+  (decisions get explained after the user could weigh in).
+
+### D55. Profiles come from a Claude memory import plus a short interview
+
+- **Answer.** Onboarding asks the user to export or paste their Claude
+  memories, reads them, drafts the profile, then asks only what is missing
+  in five or six questions: what they do, what they want to build or learn,
+  how they like to be helped. The profile fills the `AGENTS.md` slots
+  (about, how I learn, folders) and generates personal skills into the
+  workspace's `.claude/skills/`. The old `pokeseller` and `job-hunt` plugins
+  are the reference output for a user with Ed's memories.
+- **Rejected.** Interview only (loses the richest signal about how they
+  think). Benjamin writing a profile per friend by hand (keeps him in the
+  loop for every friend).
+
+### D56. App stack: Python by default, TypeScript when the goal needs a web UI
+
+- **Answer.** Scripts, data work, automations and report feeds: Python with
+  uv, ruff and pytest. Anything with a browser UI: TypeScript with bun, Biome
+  and Vitest. Two `projects/` templates with one CI skeleton (gitleaks,
+  Semgrep, zizmor, osv-scanner, Dependabot, tests). The goal skill picks and
+  says why in one line; the user never chooses.
+- **Rejected.** Python only (web UIs become Streamlit or server templates).
+  TypeScript only, Benjamin's own stack (the user can't read any of it, and
+  the data-analyst crowd loses the Python they're learning).
+
+### D57. The first session ends with the user's own exploration packet
+
+- **Question.** The point of the kit is the "aha" moment. Setup ended with a
+  working machine and a README of prompts to try.
+- **Answer.** Onboarding's interview already surfaces what the user wants to
+  build or figure out. The last onboarding step hands off into the explore
+  skill on that topic, so the first session ends with a plain-language packet
+  they can open in OpenKnowledge, committed and backed up, and one line on
+  what just happened to it.
+- **Rejected.** A guided tour (a lecture about the system instead of the
+  system doing something for them). Nothing scripted (the user who doesn't
+  know what they don't know stalls at the blank page).
+
+### D58. Where this round is recorded
+
+These entries, plus `PROMPT.v3.md` in Benjamin's private folder as the build
+brief. Nothing pushed; Benjamin reviews both. The v2 decisions not named
+above stand: Windows first, operator and mentor modes, the help channel, the
+software list, the VM proof.
+
 ## Facts from research that shape the build
 
 - 1Password Individual is about $36 for the first year, then about $48 a year.
@@ -249,3 +506,28 @@ the pre-auth-key and sign-in-sprint ideas from D39.
 - Plugins load from this marketplace by relative path. The template sets
   `autoUpdate: true` on the marketplace entry and leaves plugin `version` unset,
   so every commit counts as an update.
+- Claude Code cloud scheduled tasks (verified 2026-11-08, research preview):
+  run on Anthropic infrastructure against the subscription, need a claude.ai
+  login (not an API key), clone the repository fresh each run and push
+  `claude/`-prefixed branches, load the clone's `CLAUDE.md`, `.claude/skills/`,
+  `.claude/agents/`, `.claude/commands/` and (single-repo runs) the
+  `.claude/settings.json` hooks and permissions, but no `~/.claude` files and
+  no marketplace plugins. The GitHub proxy rejects GraphQL, so `gh pr` and
+  `gh issue` fail; use `gh api` REST. Triggers: schedule (one hour minimum),
+  API fire, GitHub pull request / issue / release events with filters. No
+  "CI failed" trigger and no documented notification channel. Available on
+  Pro, Max, Ultra, Team and Enterprise.
+- GitHub Free personal account, private repository (verified 2026-11-08):
+  Dependabot alerts, security updates and version updates are free but must
+  be enabled; secret scanning, push protection and CodeQL need paid add-ons
+  that only organizations on Team or Enterprise can buy; branch protection,
+  rulesets enforcement, required reviewers and code owners need Pro (about
+  $4 a month); Actions includes about $12 of compute a month and 500 MB of
+  storage; `gh api /repos/{o}/{r}/dependabot/alerts` works with a token that
+  can read Dependabot alerts; the secret-scanning alerts API returns 404 where
+  secret scanning isn't enabled.
+- Free scanners usable here: gitleaks-action v3 (no license key for personal
+  accounts), trufflehog (AGPL), Semgrep CE (LGPL engine, rules licensed for
+  internal use; the old `semgrep-action` is archived, run the CLI), zizmor
+  (MIT; set `advanced-security: false` on private repositories), osv-scanner
+  (Apache 2.0, reusable workflows).
