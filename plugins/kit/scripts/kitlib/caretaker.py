@@ -270,10 +270,13 @@ def install_bodies(workspace_url: str, environment_id: str, cron_utc: str, ref: 
         "pr_opened": body("beep-beginners caretaker: pull request opened", prompt("pr", workspace_url, route, ref), None),
         "garden": body("beep-beginners caretaker: weekly gardener", prompt("garden", workspace_url, route, ref),
                        garden_cron_utc or "7 3 * * 1"),
-        "webhook": {"source": "github", "repository": workspace_url, "events": ["pull_request.opened"],
-                    "routine_trigger_id": "<id of pr_opened once created>"},
+        # The shape the routines API accepts (2026-11-09): hook_type app, source github,
+        # scope_id owner/repo (stored as github.com/owner/repo), an event list, the routine id.
+        "webhook": {"hook_type": "app", "source": "github", "scope_id": _slug_from_url(workspace_url),
+                    "events": ["pull_request.opened"], "routine_trigger_id": "<id of pr_opened once created>"},
         "notes": ["Create sweep, then pr_opened, then garden with the schedule tool's create action; then "
-                  "create_webhook_trigger with pr_opened's id. Record the three ids with `kit caretaker record`."],
+                  "create_webhook_trigger with this webhook body and pr_opened's id. Record the three ids with "
+                  "`kit caretaker record`."],
     }
 
 
@@ -324,6 +327,12 @@ jobs:
 def _indent(text: str, n: int) -> str:
     pad = " " * n
     return "\n".join(pad + line if line else "" for line in text.splitlines())
+
+
+def _slug_from_url(url: str) -> str:
+    import re
+    m = re.search(r"github\.com[:/]([^/]+)/([^/.\s]+)", url)
+    return f"{m.group(1)}/{m.group(2)}" if m else url
 
 
 def local_time_to_utc_cron(hour: int, minute: int, utc_offset_hours: float, weekday: int | None = None) -> str:
