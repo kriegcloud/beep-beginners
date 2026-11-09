@@ -307,8 +307,13 @@ Save the answer: `answer workspace_parent "<path>"`.
    It copies the template, writes your profile into `AGENTS.md` and your
    personal skills into `.claude/skills/`, creates the private repo on
    GitHub, pushes, installs the plugins at project scope, and turns on
-   Dependabot alerts, security updates and delete-branch-on-merge
-   (`kit security enable`). Report the `security` part in one sentence.
+   Dependabot alerts, security updates, squash-only merges with
+   delete-branch-on-merge, and the locks (`kit security enable`, D80).
+   Report the `security` part in one sentence. If `protection.enforced` is
+   true (a public repository, or GitHub Pro), add: "GitHub itself now refuses
+   to erase or overwrite your main copy." If it is false, say nothing more:
+   the kit has left one optional NEEDS-YOU line about what Pro adds, asked
+   once; the daily safe points and the helpers' rules hold either way.
 3. If the memories or answers named scripts in Documents (a lister, an
    import script), ask: "Copy your scripts from Documents into your
    workspace, so they're backed up and versioned? Your data files stay where

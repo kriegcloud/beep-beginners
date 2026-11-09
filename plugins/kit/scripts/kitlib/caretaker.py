@@ -1,4 +1,4 @@
-"""The caretaker (D44 to D47, D62, D66, D67, D74): what runs with nobody awake.
+"""The caretaker (D44 to D47, D62, D66, D67, D74, D80): what runs with nobody awake.
 
 Three commands (`sweep`, `pr`, `garden`) and three prompt files under
 plugins/kit/caretaker/, all runner-neutral. Cloud scheduled tasks are the
@@ -31,7 +31,16 @@ STATE = Path(".kit") / "caretaker.json"
 NEVER = """Never, with nobody awake: change a price, publish anything, send a message to
 anyone, delete data, add a paid service, or keep pushing fixes once a check is
 still red after one fix attempt. Each of those becomes a NEEDS-YOU item with a
-decision brief instead."""
+decision brief instead.
+
+Hard rules, no exceptions, on every plan (D80): never force-push (`--force`,
+`--force-with-lease`, a `+` or `:` in front of a branch name); never delete or
+move a branch or tag, here or on GitHub (`git branch -D`, `git branch -d main`,
+`git tag -d`, `git push --delete`, `gh api -X DELETE`); never `git reset --hard`;
+never delete, archive, rename or change the settings, rules or protection of
+the repository (`gh repo delete`, `gh api -X PATCH repos/...`, anything under
+`rulesets` or `protection`). Only the kit itself trims old `safe/` tags, and
+only through `kit caretaker sweep`."""
 
 
 # ---------------------------------------------------------------- state and budget
@@ -81,6 +90,12 @@ def idle(root: Path, garden: bool = False) -> dict:
     """One cheap REST round: is there anything for this run to do?"""
     slug = github.repo_slug(root)
     reasons: list[str] = []
+    result: dict = {}
+    if not garden:
+        try:
+            result["safe_point"] = github.safe_tag(slug, root=root)  # D80: the daily safe point, idle or not
+        except KitError as exc:
+            reasons.append(f"could not write today's safe point: {exc}")
     prs = github.list_prs(slug)
     if prs:
         reasons.append(f"{len(prs)} open pull request(s)")
@@ -108,7 +123,7 @@ def idle(root: Path, garden: bool = False) -> dict:
             reasons.append("stale packets")
         if needs_you.is_monday():
             reasons.append("Monday: weekly note")
-    return {"idle": not reasons, "reasons": reasons}
+    return {"idle": not reasons, "reasons": reasons, **result}
 
 
 # ---------------------------------------------------------------- sweep
@@ -150,6 +165,11 @@ def sweep(root: Path, dry_run: bool = False) -> dict:
         report["alerts"] = []
         report["alerts_unreadable"] = True
         report["notes"].append(f"could not read Dependabot alerts: {exc}")
+    if not dry_run:
+        try:  # D80: the recovery net, one tag a day, trimmed after 30 days
+            report["safe_point"] = {**github.safe_tag(slug, root=root), **github.prune_safe_tags(slug, root=root)}
+        except KitError as exc:
+            report["notes"].append(f"could not keep the safe point: {exc}")
     report["chores"] = chores.run_due(root, "cloud", max_seconds=300, limit=None)
     report["stale"] = {"explorations": packets.stale(root, "exploration", 30), "goals": packets.stale(root, "goal", 30)}
     report["needs_you"] = needs_you.load(root)["open"]

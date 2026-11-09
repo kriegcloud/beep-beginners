@@ -23,7 +23,8 @@
   kit feedback add --what T --fix T [--file F] | list | send
   kit migrate [--dry-run]
   kit profile draft <memories-file> | write --answers FILE
-  kit security enable
+  kit security enable | status
+  kit undo list | --to safe/YYYY-MM-DD
   kit caretaker idle [--garden] | sweep [--dry-run] | pr <n> [--max-seconds N] | garden [--dry-run]
   kit caretaker fix-used | record --sweep ID --pr ID --garden ID [--runner R] [--plan P] | pause
   kit caretaker install --workspace URL --environment ID --cron-utc EXPR [--garden-cron-utc EXPR] [--route repo] [--runner cloud|actions] [--ref stable]
@@ -143,7 +144,10 @@ def build_parser() -> argparse.ArgumentParser:
     q = s.add_parser("write"); q.add_argument("--answers", type=Path, required=True)
 
     p = sub.add_parser("security"); s = p.add_subparsers(dest="sub", required=True)
-    s.add_parser("enable")
+    s.add_parser("enable"); s.add_parser("status")
+
+    p = sub.add_parser("undo"); p.add_argument("what", nargs="?", default="list", choices=["list"])
+    p.add_argument("--to", default="", help="a safe point, like safe/2026-11-09; without it, list them")
 
     p = sub.add_parser("caretaker"); s = p.add_subparsers(dest="sub", required=True)
     q = s.add_parser("idle"); q.add_argument("--garden", action="store_true")
@@ -298,7 +302,13 @@ def dispatch(args: argparse.Namespace):
     if args.cmd == "migrate":
         return migrate.run(root, dry_run=args.dry_run)
     if args.cmd == "security":
-        return github.enable_security(github.repo_slug(root))
+        slug = github.repo_slug(root)
+        if args.sub == "status":
+            return github.protection_status(slug)
+        return _security_enable(root, slug)
+    if args.cmd == "undo":
+        from kitlib import undo  # noqa: E402
+        return undo.undo(root, args.to) if args.to else undo.list_points(root)
     if args.cmd == "caretaker":
         if args.sub == "idle":
             return caretaker.idle(root, garden=args.garden)
@@ -315,6 +325,29 @@ def dispatch(args: argparse.Namespace):
                                              args.runner, args.plan)
         return caretaker.pause_info(root)
     raise KitError(f"unknown command {args.cmd}")
+
+
+PRO_KIND = "github-pro"
+PRO_TITLE = "Optional: stronger locks on your GitHub backup, $4 a month"
+PRO_BRIEF = ("Your backup on GitHub is already set so nothing gets erased by accident: every helper is told no, "
+             "and the kit keeps a daily safe point for 30 days. GitHub Pro ($4 a month) adds one more lock: GitHub "
+             "itself refuses to erase or overwrite the main copy, no matter who asks or how, even by mistake. "
+             "Not needed. Say yes if you'd like it, or no and this question goes away for good.")
+
+
+def _security_enable(root: Path, slug: str) -> dict:
+    """`kit security enable` (D50, D80): the free layer always, the enforced
+    layer where GitHub allows it; where it doesn't, one optional NEEDS-YOU
+    item about Pro, asked once and never again."""
+    from kitlib import github, needs_you  # noqa: E402
+    result = github.enable_security(slug)
+    protection = result.get("protection", {})
+    if not protection.get("enforced"):
+        state = needs_you.load(root)
+        asked = any(i.get("kind") == PRO_KIND for i in state["open"] + state["done"])
+        if not asked:
+            result["pro_hint"] = needs_you.add(root, PRO_TITLE, PRO_BRIEF, source="kit", kind=PRO_KIND)
+    return result
 
 
 def _review_record(root: Path, args: argparse.Namespace) -> dict:

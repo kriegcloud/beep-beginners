@@ -100,6 +100,14 @@ def check_git(command: str) -> str | None:
             return "git clean -f deletes files that were never saved in git. Ask the user before removing files."
         if sub == "branch" and ("-D" in rest or ("--delete" in rest and "--force" in rest)):
             return "git branch -D deletes a branch even if its work isn't merged. Use git branch -d, which refuses when work would be lost."
+        if sub == "branch" and ("-d" in rest or "--delete" in rest) and any(_is_kept_branch(p) for p in plain):
+            return "main and the kit's own branches (goal/, project/, claude/) are never deleted by hand; GitHub removes a branch when its pull request merges."
+        if sub == "branch" and ("-m" in rest or "-M" in rest or "--move" in rest) and any(_is_kept_branch(p) for p in plain):
+            return "main and the kit's own branches are never renamed."
+        if sub == "tag" and ("-d" in rest or "--delete" in rest):
+            return "Tags are the recovery net (the daily safe/ points and the releases). Agents never delete them; the kit trims old safe points itself."
+        if sub == "update-ref" and ("-d" in rest or "--delete" in rest):
+            return "Deleting a ref by hand can erase a branch or the recovery net, so it's blocked."
         if sub == "checkout" and ("." in plain or "-f" in flags or "--force" in flags):
             return "git checkout . throws away unsaved changes. Commit them first, or ask the user."
         if sub == "restore" and "." in plain:
@@ -110,13 +118,18 @@ def check_git(command: str) -> str | None:
         if sub == "merge" and plain:
             return "Merging happens only through `kit pr merge`, after every check is green. Branches are never merged by hand."
         if sub == "push":
-            if any(f in ("-f", "--force", "--force-with-lease", "--force-if-includes", "--mirror", "--delete", "-d") or f.startswith("--force-with-lease=") for f in flags):
+            if any(f in ("-f", "--force", "--force-with-lease", "--force-if-includes", "--mirror", "--delete", "-d", "--prune") or f.startswith("--force-with-lease=") for f in flags):
                 return "Force pushes and remote deletes can erase the backup on GitHub, so they're blocked here."
             if any(p.startswith("+") or p.startswith(":") for p in plain[1:]):
                 return "This push would overwrite or delete history on GitHub, so it's blocked here."
             if plain and plain[0] != "origin":
                 return f"Pushes go only to origin. '{plain[0]}' is a different place, so this push is blocked."
     return None
+
+
+def _is_kept_branch(name: str) -> bool:
+    n = name.lower()
+    return n == "main" or n.startswith(("goal/", "project/", "claude/", "origin/main"))
 
 
 # ---------------------------------------------------------------- gh rules
@@ -132,15 +145,32 @@ def check_gh(command: str) -> str | None:
         args = [w.lower() for w in words[1:]]
         if len(args) >= 2 and args[0] == "pr" and args[1] == "merge":
             return _MERGE_REASON
+        if len(args) >= 2 and args[0] == "repo" and args[1] in ("delete", "archive", "rename", "unarchive"):
+            return "The repository itself is never deleted, archived or renamed by an agent. That's the owner's call, on GitHub, by hand."
         if args and args[0] == "api":
             joined = " ".join(args)
+            method = _api_method(joined)
             if re.search(r"pulls/\S+/merge\b", joined) or re.search(r"/merges\b", joined) or "merge-upstream" in joined:
                 return _MERGE_REASON
-            if re.search(r"-x\s+(delete)\b", joined) and re.search(r"git/refs/heads/", joined):
-                return "Deleting branches on GitHub is left to GitHub itself (delete on merge). Agents don't delete branches."
-            if re.search(r"-x\s+(put|patch|delete)\b", joined) and re.search(r"/branches/\S+/protection", joined):
-                return "Branch protection settings aren't something agents change."
+            if method == "delete" and re.search(r"git/refs/", joined):
+                return ("Deleting branches or tags on GitHub is left to GitHub itself (delete on merge) and to the kit "
+                        "(old safe points). Agents don't delete refs.")
+            if method == "delete" and re.search(r"(^|\s|/)repos/[^/\s]+/[^/\s]+/?(\s|$)", joined):
+                return "Deleting the repository would erase the backup. Agents never do that."
+            if method == "delete" and re.search(r"/(releases|tags)\b", joined):
+                return "Releases and tags are never deleted by an agent."
+            if method in ("put", "patch", "delete", "post") and re.search(r"/(branches/\S+/protection|rulesets)", joined):
+                return "Branch protection and rulesets are the kit's job (`kit security enable`); agents don't change them."
+            if method == "patch" and re.search(r"(^|\s|/)repos/[^/\s]+/[^/\s]+/?(\s|$)", joined):
+                return "Repository settings are the kit's job (`kit security enable`); agents don't change them by hand."
     return None
+
+
+def _api_method(joined: str) -> str:
+    m = re.search(r"(?:-x|--method)[\s=]+(\w+)", joined)
+    if m:
+        return m.group(1).lower()
+    return "post" if re.search(r"(^|\s)(-f|-F|--field|--raw-field|--input)\b", joined) else "get"
 
 
 # ---------------------------------------------------------------- delete rules

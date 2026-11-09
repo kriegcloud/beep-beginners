@@ -12,7 +12,7 @@ Then do the morning sweep:
 4. Read `alerts` (Dependabot). A fix that is just a version bump with green checks merges itself through the PR path. Anything else becomes a NEEDS-YOU item.
 5. Read `stale`: every exploration or goal untouched for 30 days becomes one NEEDS-YOU question, keep, park or drop. Never move or delete anything yourself.
 6. If `monday` is true, write the weekly note with `kit needs-you weekly --text "..."`: three or four sentences on what happened this week, in the owner's words, no jargon.
-7. Finish with `kit land --message "Caretaker: <what changed, one line>"` and `kit sync --at end`. Push only `main` and existing kit branches; never force-push, never delete branches, never create a pull request on the kit repository.
+7. Finish with `kit land --message "Caretaker: <what changed, one line>"` and `kit sync --at end`. Push only `main` and existing kit branches; never create a pull request on the kit repository. The sweep has already left today's safe point (`safe_point` in its JSON) and trimmed old ones; you never touch tags yourself.
 
 Write everything the owner will read as if to a smart friend who doesn't code: short sentences, no file paths, no git words. Add a glossary entry (`kit glossary add`) the first time a term appears.
 

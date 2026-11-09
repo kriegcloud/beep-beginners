@@ -44,6 +44,19 @@ BLOCK_GIT = [
     "git commit -am x",
     "git merge goal/x",
     "git -C C:/ws commit -m x",
+    # D80: the recovery net and the kept branches
+    "git tag -d safe/2026-11-09",
+    "git tag --delete v3.0.0",
+    "git branch -d main",
+    "git branch -d goal/sales-import",
+    "git branch --delete project/lister",
+    "git branch -m main old-main",
+    "git push --delete origin safe/2026-11-09",
+    "git push -d origin main",
+    "git push --prune origin",
+    "git push --mirror origin",
+    "git push --force-if-includes origin main",
+    "git update-ref -d refs/tags/safe/2026-11-09",
 ]
 ALLOW_GIT = [
     "git push",
@@ -59,6 +72,12 @@ ALLOW_GIT = [
     "git checkout -b new-branch",
     "git restore file.txt",
     "git log --oneline -5",
+    "git tag safe/2026-11-09",
+    "git tag -l",
+    "git branch -d feature/x",
+    "git branch -m feature/x feature/y",
+    "git push origin --tags",
+    "git update-ref refs/heads/main abc123",
 ]
 
 
@@ -145,6 +164,17 @@ BLOCK_GH = [
     "gh api -X DELETE repos/o/r/git/refs/heads/goal/x",
     "gh api -X PUT repos/o/r/branches/main/protection",
     'powershell -Command "gh pr merge 3"',
+    "gh repo delete o/r --yes",
+    "gh repo archive o/r",
+    "gh api -X DELETE repos/o/r",
+    "gh api --method DELETE repos/o/r/git/refs/tags/safe/2026-11-09",
+    "gh api -X DELETE repos/o/r/git/refs/heads/goal/x",
+    "gh api -X DELETE repos/o/r/releases/12",
+    "gh api -X POST repos/o/r/rulesets --input body.json",
+    "gh api -X PUT repos/o/r/rulesets/5 --input body.json",
+    "gh api -X DELETE repos/o/r/rulesets/5",
+    "gh api -X PATCH repos/o/r -f allow_merge_commit=true",
+    "gh api repos/o/r -X PATCH -F delete_branch_on_merge=false",
 ]
 ALLOW_GH = [
     "gh api repos/o/r/pulls",
@@ -155,6 +185,14 @@ ALLOW_GH = [
     "gh auth status",
     "gh api user --jq .login",
     "uv run --script kit.py pr merge 12",
+    "gh api repos/o/r",
+    "gh api repos/o/r/rulesets",
+    "gh api repos/o/r/git/matching-refs/tags/safe/",
+    "gh api repos/o/r/pulls?state=open",
+    "gh api -X POST repos/o/r/statuses/abc -f state=success -f context=kit/review",
+    "gh api -X POST repos/o/r/git/refs -f ref=refs/tags/safe/2026-11-09 -f sha=abc",
+    "gh api -X PUT repos/o/r/vulnerability-alerts",
+    "gh repo view o/r",
 ]
 
 

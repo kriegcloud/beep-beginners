@@ -66,11 +66,25 @@ skill, a hook, the script, `chores.yaml`), not the template.
   the plugin route were removed; the record of why is D76 and
   `tests/cloud/evidence/2026-11-09.md`.
 
+## The locks (D80)
+
+`kit security enable` is idempotent and safe to re-run: squash-only merges
+and delete-branch-on-merge; then, where `GET repos/{o}/{r}/rulesets` answers
+(public repositories on every plan, private on Pro and up), three rulesets
+by name, updated in place. A private repository on Free answers 403
+"Upgrade to GitHub Pro or make this repository public"; that is the plan
+detection. The Claude GitHub App id (`gh api apps/claude` .id, 1236702) is a
+bypass actor on the pull-request ruleset so the caretaker can land on main.
+Safe points are lightweight tags `safe/YYYY-MM-DD` made over REST; `kit undo`
+restores from one as a new commit. The guard's new denials and the settings
+deny rules are twins; keep them in step and the test
+`test_template_settings_deny_destructive_actions` honest.
+
 ## Tests
 
 ```sh
 uv run --script plugins/kit/tests/test_rules.py      # guard rules
-uv run --script plugins/kit/tests/test_landing.py    # kit land / kit sync against real git repos
+uv run --script plugins/kit/tests/test_landing.py    # kit land / kit sync / kit undo against real git repos
 uv run --script plugins/kit/tests/test_kit.py        # packets, projects, chores, needs-you, explain, profile, gate, manifest
 uv run --script plugins/kit/tests/test_okf.py        # docs/ as OKF, trust and staleness, retros, feedback, migrations
 uv run --script plugins/kit/tests/test_elevated_batch.py   # needs pwsh

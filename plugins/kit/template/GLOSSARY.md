@@ -14,6 +14,8 @@ Words that came up, explained once. Claude adds a term the first time it uses it
 - **Backup**: the copy of this workspace on GitHub. The kit refreshes it at the end of every session.
 - **Caretaker**: the helper that runs every morning while you're away. It merges finished work, reads security notices, and writes what needs you into NEEDS-YOU.md.
 - **Exploration**: an idea being thought through, as a folder of notes in `explorations/`.
+- **Lock**: a rule on your GitHub backup that stops the main copy being erased or overwritten. Every helper is told no on every plan; on GitHub Pro, or a public repository, GitHub itself refuses too.
 - **Goal**: work that came out of an exploration and is ready to do, in `goals/`.
 - **Project**: an app or automation that lives in `projects/`, with its own tests.
+- **Safe point**: a bookmark the caretaker leaves on your GitHub backup every morning, kept for 30 days. If something goes wrong, say "undo to yesterday" and Claude puts the main copy back to it without losing anything since; that step can itself be undone.
 - **Workspace**: this folder. Everything Claude keeps for you lives here or is pointed to from here.

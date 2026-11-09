@@ -32,6 +32,10 @@ chores:
     cadence: 1
     where: desktop
     line: "Checked on the caretaker's last run."
+  - id: locks
+    cadence: 30
+    where: desktop
+    line: "Checked the locks on your GitHub backup and trimmed old safe points."
   - id: okf-validate
     cadence: 7
     where: both

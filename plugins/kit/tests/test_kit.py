@@ -296,5 +296,208 @@ def test_fix_budget(ws):
     assert caretaker.pause_info(ws)["routines"] == {"sweep": "trig_1", "pr_opened": "trig_2"}
 
 
+# ---------------------------------------------------------------- the locks (D80)
+
+class FakeGitHub:
+    """Records `github.api` calls and answers from a small script."""
+
+    def __init__(self, rulesets="free", tags=()):
+        self.calls: list[tuple[str, str, dict | None]] = []
+        self.rulesets = rulesets  # "free" -> 403, or a list of existing rulesets
+        self.tags = list(tags)
+        self.next_id = 100
+
+    def __call__(self, path, method="GET", fields=None, raw=None, **_):
+        self.calls.append((method, path, raw))
+        if path.startswith("repos/o/r/rulesets"):
+            if self.rulesets == "free":
+                raise KitError("GitHub GET repos/o/r/rulesets failed: Upgrade to GitHub Pro or make this repository public to enable this feature. (HTTP 403)")
+            if method == "GET":
+                return self.rulesets
+            if method == "POST":
+                if any(a.get("actor_type") == "RepositoryRole" for a in raw.get("bypass_actors", [])) and getattr(self, "no_role", False):
+                    raise KitError("GitHub POST failed: Validation Failed: bypass_actors RepositoryRole is not valid for this actor")
+                self.next_id += 1
+                self.rulesets.append({"id": self.next_id, "name": raw["name"], "enforcement": "active"})
+                return {"id": self.next_id}
+            return {}
+        if path == "repos/o/r/git/ref/heads/main":
+            return {"object": {"sha": "f" * 40}}
+        if path.startswith("repos/o/r/git/matching-refs/tags/safe"):
+            assert not path.endswith("/"), "no trailing slash: the cloud proxy refuses it"
+            return [{"ref": f"refs/tags/{t}", "object": {"sha": "a" * 40}} for t in self.tags]
+        if path == "repos/o/r/git/refs" and method == "POST":
+            tag = raw["ref"].removeprefix("refs/tags/")
+            if tag in self.tags:
+                raise KitError("GitHub POST failed: Reference already exists")
+            self.tags.append(tag)
+            return {"ref": raw["ref"]}
+        if path.startswith("repos/o/r/git/refs/tags/") and method == "DELETE":
+            tag = path.removeprefix("repos/o/r/git/refs/tags/")
+            if getattr(self, "tags_protected", False):
+                raise KitError("GitHub DELETE failed: Cannot delete this tag: Repository rule violations found")
+            self.tags.remove(tag)
+            return None
+        if path == "repos/o/r":
+            return {"private": True, "allow_squash_merge": True, "allow_merge_commit": False, "allow_rebase_merge": False,
+                    "delete_branch_on_merge": True}
+        return {}
+
+
+def test_enable_security_free_layer_and_pro_hint(ws, monkeypatch):
+    fake = FakeGitHub()
+    monkeypatch.setattr(github, "api", fake)
+    result = github.enable_security("o/r")
+    patch = next(raw for m, path, raw in fake.calls if m == "PATCH" and path == "repos/o/r")
+    assert patch["allow_merge_commit"] is False and patch["allow_rebase_merge"] is False and patch["allow_squash_merge"] is True
+    assert patch["delete_branch_on_merge"] is True
+    assert result["squash_only"] == "enabled" and result["protection"]["enforced"] is False
+    assert "Free" in result["protection"]["reason"]
+    # the one-time Pro line, through kit.py's wrapper
+    sys.path.insert(0, str(KIT / "scripts"))
+    import kit as kit_cli  # noqa: E402
+    first = kit_cli._security_enable(ws, "o/r")
+    assert first["pro_hint"]["kind"] == "github-pro" and "$4" in first["pro_hint"]["title"]
+    second = kit_cli._security_enable(ws, "o/r")
+    assert "pro_hint" not in second
+    needs_you.resolve(ws, first["pro_hint"]["id"], "no thanks")
+    third = kit_cli._security_enable(ws, "o/r")
+    assert "pro_hint" not in third  # asked once, never again
+    assert needs_you.read_aloud(ws)["count"] == 0
+
+
+def test_apply_protection_creates_then_updates(monkeypatch):
+    fake = FakeGitHub(rulesets=[])
+    monkeypatch.setattr(github, "api", fake)
+    first = github.apply_protection("o/r")
+    assert first["enforced"] and set(first["rulesets"].values()) == {"created"}
+    posted = [raw for m, path, raw in fake.calls if m == "POST" and path == "repos/o/r/rulesets"]
+    by_name = {r["name"]: r for r in posted}
+    no_erase = by_name[github.RULESET_NO_ERASE]
+    assert no_erase["bypass_actors"] == [] and {r["type"] for r in no_erase["rules"]} == {"deletion", "non_fast_forward"}
+    assert no_erase["conditions"]["ref_name"]["include"] == ["~DEFAULT_BRANCH"]
+    prs = by_name[github.RULESET_PULL_REQUESTS]
+    assert {a["actor_type"] for a in prs["bypass_actors"]} == {"RepositoryRole", "Integration"}
+    assert any(a["actor_id"] == github.CLAUDE_APP_ID for a in prs["bypass_actors"])
+    checks = next(r for r in prs["rules"] if r["type"] == "required_status_checks")
+    assert checks["parameters"]["required_status_checks"] == [{"context": "kit/review"}]
+    tags = by_name[github.RULESET_TAGS]
+    assert tags["target"] == "tag" and tags["conditions"]["ref_name"]["include"] == ["refs/tags/v*", "refs/tags/safe/*"]
+    assert {r["type"] for r in tags["rules"]} == {"deletion", "update"}
+    # second run updates in place, no duplicates
+    second = github.apply_protection("o/r")
+    assert set(second["rulesets"].values()) == {"updated"}
+    assert len([c for c in fake.calls if c[0] == "PUT" and "/rulesets/" in c[1]]) == 3
+    assert len(fake.rulesets) == 3
+
+
+def test_apply_protection_without_owner_bypass(monkeypatch):
+    fake = FakeGitHub(rulesets=[]); fake.no_role = True
+    monkeypatch.setattr(github, "api", fake)
+    result = github.apply_protection("o/r")
+    assert result["enforced"]
+    assert result["rulesets"][github.RULESET_NO_ERASE] == "created"
+    assert result["rulesets"][github.RULESET_PULL_REQUESTS].startswith("skipped")
+    assert result["rulesets"][github.RULESET_TAGS] == "created (no owner bypass)"
+
+
+def test_safe_points_create_once_and_prune(monkeypatch):
+    fake = FakeGitHub(tags=["safe/2026-09-01", "safe/2026-11-01", "safe/not-a-date"])
+    monkeypatch.setattr(github, "api", fake)
+    made = github.safe_tag("o/r", "2026-11-09")
+    assert made == {"tag": "safe/2026-11-09", "sha": "f" * 40, "created": True, "via": "api"}
+    again = github.safe_tag("o/r", "2026-11-09")
+    assert again["created"] is False
+    pruned = github.prune_safe_tags("o/r", today="2026-11-09")
+    assert pruned["pruned"] == ["safe/2026-09-01"] and set(pruned["kept"]) == {"safe/2026-11-01", "safe/2026-11-09", "safe/not-a-date"}
+    fake.tags_protected = True
+    fake.tags.append("safe/2026-01-01")
+    protected = github.prune_safe_tags("o/r", today="2026-11-09")
+    assert protected["protected"] == ["safe/2026-01-01"] and protected["pruned"] == []
+    status = github.protection_status("o/r")
+    assert status["squash_only"] and status["rulesets_available"] is False and status["enforced"] is False
+    assert [p["tag"] for p in status["safe_points"]][-1] == "safe/not-a-date"
+
+
+def test_safe_point_falls_back_to_a_push_when_the_proxy_refuses(monkeypatch, tmp_path):
+    fake = FakeGitHub()
+    real_call = fake.__call__
+
+    def proxy(path, method="GET", fields=None, raw=None, **kw):
+        if path == "repos/o/r/git/refs" and method == "POST":
+            raise KitError("GitHub POST repos/o/r/git/refs failed: Write access to this GitHub API path is not permitted through this proxy.")
+        if path.startswith("repos/o/r/git/refs/tags/") and method == "DELETE":
+            raise KitError("GitHub DELETE failed: Write access to this GitHub API path is not permitted through this proxy.")
+        return real_call(path, method, fields, raw, **kw)
+    monkeypatch.setattr(github, "api", proxy)
+    pushes = []
+
+    def fake_git(root, *args, **kw):
+        pushes.append(args)
+        return subprocess.CompletedProcess(args, 0, "", "")
+    monkeypatch.setattr(github, "git", fake_git)
+    made = github.safe_tag("o/r", "2026-11-09", root=tmp_path)
+    assert made["created"] and made["via"] == "push"
+    assert ("push", "-q", "origin", f"{'f' * 40}:refs/tags/safe/2026-11-09") in pushes
+    with pytest.raises(KitError):
+        github.safe_tag("o/r", "2026-11-10")  # no root: the refusal is reported, not hidden
+    # a refused listing falls back to ls-remote when a root is given
+    def refuse_list(path, method="GET", fields=None, raw=None, **kw):
+        if "matching-refs" in path:
+            raise KitError("GitHub GET failed: Request path could not be canonicalized.")
+        return proxy(path, method, fields, raw, **kw)
+    monkeypatch.setattr(github, "api", refuse_list)
+    monkeypatch.setattr(github, "git", lambda root, *a, **k: subprocess.CompletedProcess(a, 0, "a" * 40 + "\trefs/tags/safe/2026-10-01\n" + "b" * 40 + "\trefs/tags/safe/2026-11-09\n", ""))
+    assert [t["tag"] for t in github.list_safe_tags("o/r", root=tmp_path)] == ["safe/2026-10-01", "safe/2026-11-09"]
+    with pytest.raises(KitError):
+        github.list_safe_tags("o/r")
+    monkeypatch.setattr(github, "api", proxy)
+    monkeypatch.setattr(github, "git", fake_git)
+    fake.tags.append("safe/2026-01-01")
+    pruned = github.prune_safe_tags("o/r", today="2026-11-09", root=tmp_path)
+    assert pruned["pruned"] == ["safe/2026-01-01"] and ("push", "-q", "origin", "--delete", "refs/tags/safe/2026-01-01") in pushes
+
+
+def test_merge_pr_posts_review_status_for_bots(monkeypatch):
+    calls = []
+    pr = {"number": 7, "title": "Bump ruff", "head": {"ref": "dependabot/pip/ruff-1", "sha": "c" * 40}, "base": {"ref": "main"},
+          "draft": False, "user": {"login": "dependabot[bot]"}, "html_url": "u", "merged": False, "state": "open",
+          "mergeable": True, "mergeable_state": "clean"}
+
+    def fake_api(path, method="GET", fields=None, raw=None, **_):
+        calls.append((method, path, raw))
+        if path == "repos/o/r/pulls/7":
+            return pr
+        if "/check-runs" in path:
+            return {"check_runs": [{"name": "gitleaks", "status": "completed", "conclusion": "success", "id": 1, "html_url": ""}]}
+        if path.endswith("/status"):
+            return {"statuses": []}
+        if path.endswith("/merge"):
+            return {"merged": True, "sha": "d" * 40}
+        return {}
+    monkeypatch.setattr(github, "api", fake_api)
+    result = github.merge_pr("o/r", 7)
+    assert result["merged"]
+    posted = [raw for m, path, raw in calls if m == "POST" and path == f"repos/o/r/statuses/{'c' * 40}"]
+    assert posted and posted[0]["context"] == "kit/review" and posted[0]["state"] == "success"
+    assert calls.index(("POST", f"repos/o/r/statuses/{'c' * 40}", posted[0])) < len(calls) - 1  # before the merge
+
+
+def test_never_list_carries_the_hard_rules():
+    for word in ("force-push", "git tag -d", "git push --delete", "gh api -X DELETE", "reset --hard", "rulesets", "gh repo delete"):
+        assert word in caretaker.NEVER
+    bodies = caretaker.install_bodies("https://github.com/o/ws", "env_1", "7 13 * * *")
+    for name in ("sweep", "pr_opened", "garden"):
+        assert "Hard rules, no exceptions" in bodies[name]["job_config"]["ccr"]["events"][0]["data"]["message"]["content"]
+
+
+def test_template_settings_deny_destructive_actions():
+    settings = json.loads((KIT / "template" / ".claude" / "settings.json").read_text())
+    deny = settings["permissions"]["deny"]
+    for pat in ("git tag -d:*", "git push --delete:*", "git branch -d main*", "gh repo delete:*", "gh api -X DELETE:*",
+                "gh api * rulesets*", "git update-ref -d:*"):
+        assert f"Bash({pat})" in deny and f"PowerShell({pat})" in deny, pat
+
+
 if __name__ == "__main__":
     sys.exit(pytest.main([__file__, "-q"]))
