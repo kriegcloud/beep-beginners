@@ -42,8 +42,20 @@ def undo(root: Path, to: str, open_pr=None) -> dict:
     branch = landing.ensure_main(root)
     if branch != "main":
         raise KitError(f"the workspace is on '{branch}', not main")
-    if landing.changed_paths(root):
+    hub, projects = landing.partition(landing.changed_paths(root))
+    if hub:
         raise KitError("there are unsaved changes; run `kit land` first so nothing is lost, then undo")
+    state = landing.landed_state(root)
+    if projects:
+        # Open project branches keep their folders different from main's; that
+        # is normal. Anything unsaved in them goes to its branch first.
+        unsaved = [n for n in projects if landing.working_tree_of_prefix(root, f"{landing.PROJECTS}/{n}")
+                   != state.get("projects", {}).get(n, {}).get("tree")]
+        if unsaved:
+            landing.land(root, "Save unfinished work before the undo")
+            state = landing.landed_state(root)
+    for name in sorted(state.get("projects", {})):
+        landing._materialize(root, f"{landing.PROJECTS}/{name}", "HEAD")
     fetch = git(root, "fetch", "-q", "origin", "main", f"+refs/tags/{to}:refs/tags/{to}", timeout=120)
     if fetch.returncode != 0:
         raise KitError(f"no safe point called {to} on GitHub ({fetch.stderr.strip()[-160:]})")
@@ -61,12 +73,14 @@ def undo(root: Path, to: str, open_pr=None) -> dict:
     git(root, "reset", "-q", "--hard", "main", timeout=60, check=True)  # the tree was clean; this only refreshes it
     push = git(root, "push", "-q", "origin", "main", timeout=120)
     if push.returncode == 0:
+        _reapply_branches(root, state)
         return {"undone": True, "to": to, "commit": commit[:12], "via": "main",
                 "previous": local[:12], "note": f"history kept; `kit undo --to <a later safe point>` reverses this"}
 
     # A rule refused the push (someone without the owner's bypass): go through a pull request.
     git(root, "update-ref", "refs/heads/main", local, commit, timeout=10, check=True)
     git(root, "reset", "-q", "--hard", "main", timeout=60, check=True)
+    _reapply_branches(root, state)
     slug = github.repo_slug(root)
     undo_branch = f"undo/{to.removeprefix('safe/')}"
     git(root, "update-ref", f"refs/heads/{undo_branch}", commit, timeout=10, check=True)
@@ -79,3 +93,11 @@ def undo(root: Path, to: str, open_pr=None) -> dict:
     github.post_review_status(slug, pr["sha"], "success", f"restores main to {to}; no new code to review")
     return {"undone": False, "to": to, "commit": commit[:12], "via": "pull_request", "pr": pr,
             "note": "main's rule asked for a pull request; it merges when the checks are green (the caretaker does that)"}
+
+
+def _reapply_branches(root: Path, state: dict) -> None:
+    """Put each open project branch's folder back, as sync does (D48)."""
+    for name in sorted(state.get("projects", {})):
+        branch = state["projects"][name]["branch"]
+        if git(root, "rev-parse", "--verify", "--quiet", f"refs/heads/{branch}", timeout=10).returncode == 0:
+            landing._materialize(root, f"{landing.PROJECTS}/{name}", branch)

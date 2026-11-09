@@ -325,6 +325,25 @@ def test_undo_restores_main_as_a_new_commit(repos):
     assert undo.undo(ws, "safe/2026-11-08")["reason"].startswith("main already matches")
 
 
+def test_undo_keeps_open_project_branches(repos):
+    ws, origin = repos
+    write(ws, "projects/lister/README.md", "lister\n")
+    write(ws, "projects/lister/.kit.json", '{"goal": "sell"}\n')
+    landing.land(ws, "Start the lister")  # goes to goal/sell, main untouched
+    _safe_point(ws, origin, "2026-11-08")
+    write(ws, "README.md", "a mistake\n")
+    landing.land(ws, "Oops")
+    sh("git", "push", "-q", "origin", "main", cwd=ws)
+    write(ws, "projects/lister/README.md", "lister, unsaved edit\n")  # unsaved work in the open branch
+    result = undo.undo(ws, "safe/2026-11-08")
+    assert result["undone"]
+    assert (ws / "README.md").read_text() == "# ws\n"
+    # the project folder is the branch's, with the unsaved edit landed on the branch first
+    assert (ws / "projects" / "lister" / "README.md").read_text() == "lister, unsaved edit\n"
+    assert "unsaved edit" in sh("git", "show", "goal/sell:projects/lister/README.md", cwd=ws)
+    assert not sh("git", "ls-tree", "main", "projects/lister", cwd=ws)  # still not on main
+
+
 def test_undo_refuses_unsaved_work_and_unknown_points(repos):
     ws, origin = repos
     _safe_point(ws, origin, "2026-11-08")
