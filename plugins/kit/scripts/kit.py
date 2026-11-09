@@ -359,22 +359,34 @@ def _review_record(root: Path, args: argparse.Namespace) -> dict:
             f"status: stable\n---\n# Review of {args.project}, {today()}\n\n{args.findings} finding(s), {args.fixed} fixed, {waived} left as they are.\n\n"
             f"## Left as they are, and why\n\n{waivers or 'Nothing.'}\n")
     path.write_text(text, encoding="utf-8")
+    from kitlib import landing  # noqa: E402
+    # The verdict covers exactly this state of the project folder. A later push
+    # changes the tree, and the stored record stops matching, so it is reviewed again.
+    tree = landing.working_tree_of_prefix(root, f"projects/{args.project}")
     record = {"goal": args.goal, "project": args.project, "findings": args.findings, "fixed": args.fixed,
-              "waived": waived, "record": path.relative_to(root).as_posix(), "date": today()}
+              "waived": waived, "record": path.relative_to(root).as_posix(), "date": today(), "tree": tree}
     (root / ".kit").mkdir(exist_ok=True)
     reviews = root / ".kit" / "reviews.json"
     data = json.loads(reviews.read_text(encoding="utf-8")) if reviews.exists() else {}
-    from kitlib import landing  # noqa: E402
     data[landing.branch_for(root, args.project)] = record
     reviews.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
     return record
 
 
 def _latest_review(root: Path, branch: str) -> dict | None:
+    """The stored review for a branch, only while it still matches the branch
+    tip's project tree (D70: a new push needs a new review)."""
+    from kitlib import landing  # noqa: E402
     reviews = root / ".kit" / "reviews.json"
     if not reviews.exists():
         return None
-    return json.loads(reviews.read_text(encoding="utf-8")).get(branch)
+    record = json.loads(reviews.read_text(encoding="utf-8")).get(branch)
+    if not record:
+        return None
+    current = landing.tree_of_prefix(root, branch, f"projects/{record['project']}")
+    if record.get("tree") and current and record["tree"] != current:
+        return None
+    return record
 
 
 def _open_pr_for_branch(root: Path, branch: str, project_name: str | None, title: str | None = None,
